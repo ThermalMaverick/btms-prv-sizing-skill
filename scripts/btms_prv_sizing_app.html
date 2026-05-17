@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="relay-token" content="__RELAY_TOKEN__">
+<title>Battery Pack PRV Sizing Tool</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  /* ── Tokens ── */
+  :root {
+    --shell-bg:        #f2f5f9;
+    --shell-border:    #d8e1eb;
+    --panel-border:    #dfe5ed;
+    --panel-bg:        #f6f8fb;
+    --divider:         #d8e1eb;
+    --accent:          #6F86A8;
+    --accent-deep:     #3d5169;
+    --ctrl-bg:         #ffffff;
+    --ctrl-border:     #b8c4d2;
+    --ctrl-border-hov: #98a8bb;
+    --ctrl-focus:      #6F86A8;
+    --ctrl-dis-bg:     #eef2f7;
+    --ctrl-dis-text:   #9aa6b5;
+    --ctrl-text:       #1f2a37;
+    --ctrl-ph:         #7a8797;
+    --run-bg:          #28a745;
+    --run-bg-hov:      #218838;
+    --kpi-ok:          #28a745;
+    --kpi-fail:        #ff4b4b;
+    --msg-info-bg:     #e8f4fd; --msg-info-border: #6F86A8; --msg-info-text: #1a3a5c;
+    --msg-ok-bg:       #e9f9ee; --msg-ok-border:   #28a745; --msg-ok-text:   #145c28;
+    --msg-warn-bg:     #fff8e6; --msg-warn-border: #c47d11; --msg-warn-text: #7a4d00;
+    --msg-err-bg:      #fdecea; --msg-err-border:  #b54545; --msg-err-text:  #6b1a1a;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    background: var(--shell-bg);
+    color: var(--ctrl-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top nav bar ── */
+  .top-nav {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--shell-border);
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .top-nav .brand {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-deep);
+    margin-right: 12px;
+    white-space: nowrap;
+  }
+  .nav-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--ctrl-border);
+    border-radius: 6px;
+    background: var(--ctrl-bg);
+    color: var(--ctrl-text);
+    cursor: pointer;
+    font-size: 13px;
+    transition: border-color .15s, background .15s;
+  }
+  .nav-btn:hover { border-color: var(--accent); background: var(--panel-bg); }
+  .nav-spacer { flex: 1; }
+  .conn-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .conn-bar label { font-size: 12px; color: #6b7785; white-space: nowrap; }
+  .conn-bar input {
+    padding: 4px 8px;
+    border: 1px solid var(--ctrl-border);
+    border-radius: 5px;
+    font-size: 12px;
+    background: var(--ctrl-bg);
+    color: var(--ctrl-text);
+    outline: none;
+  }
+  .conn-bar input:focus { border-color: var(--ctrl-focus); }
+  #conn-endpoint { width: 200px; }
+  #conn-apikey   { width: 160px; }
+
+  /* ── Shell wrapper ── */
+  .shell {
+    flex: 1;
+    padding: 10px 12px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .workspace {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── Columns ── */
+  .col-left   { flex: 0 0 25%; min-width: 220px; display: flex; flex-direction: column; }
+  .col-center { flex: 0 0 55%; min-width: 0;     display: flex; flex-direction: column; gap: 6px; }
+  .col-right  { flex: 0 0 20%; min-width: 160px; display: flex; flex-direction: column; }
+
+  .panel {
+    background: #ffffff;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow-y: auto;
+  }
+  .col-left   .panel { flex: 1; }
+  .col-right  .panel { flex: 1; }
+
+  /* ── Panel typography ── */
+  .panel-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-deep);
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--divider);
+  }
+  .group-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 10px 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .group-title::before {
+    content: "";
+    display: inline-block;
+    width: 3px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .group-sep {
+    border: none;
+    border-top: 1px solid var(--divider);
+    margin: 8px 0;
+  }
+
+  /* ── Form controls ── */
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    min-height: 30px;
+  }
+  .field-label {
+    flex: 1 1 auto;
+    font-size: 13px;
+    color: var(--ctrl-text);
+    display: flex;
+    align-items: center;
+    min-height: 30px;
+  }
+  .field-value { flex: 0 0 80px; }
+  .field-unit  { flex: 0 0 62px; }
+
+  input[type="number"], select {
+    width: 100%;
+    padding: 4px 7px;
+    border: 1px solid var(--ctrl-border);
+    border-radius: 5px;
+    background: var(--ctrl-bg);
+    color: var(--ctrl-text);
+    font-size: 13px;
+    outline: none;
+    height: 30px;
+  }
+  input[type="number"]:focus, select:focus { border-color: var(--ctrl-focus); }
+  select.full-w { flex: 1 1 0; }
+
+  /* ── Sim Ops row ── */
+  .sim-ops-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+  .sim-ops-row .field-label { flex: 0 0 auto; white-space: nowrap; }
+  #t-max-input { width: 70px; }
+
+  .btn {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s;
+    height: 30px;
+  }
+  .btn-run {
+    background: var(--run-bg);
+    color: #fff;
+    border-color: #1e7e34;
+    flex: 1 1 auto;
+  }
+  .btn-run:hover:not(:disabled) { background: var(--run-bg-hov); }
+  .btn-run:disabled { background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text); border-color: var(--ctrl-border); cursor: not-allowed; }
+  .btn-sec {
+    background: var(--ctrl-bg);
+    border-color: var(--ctrl-border);
+    color: var(--ctrl-text);
+    flex: 1 1 auto;
+  }
+  .btn-sec:hover:not(:disabled) { border-color: var(--accent); background: var(--panel-bg); }
+  .btn-sec:disabled { background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text); cursor: not-allowed; }
+
+  /* ── Messages ── */
+  .msg-panel {
+    max-height: 80px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 3px;
+  }
+  .msg-item {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    border-left: 3px solid;
+    line-height: 1.4;
+  }
+  .msg-info { background: var(--msg-info-bg); border-color: var(--msg-info-border); color: var(--msg-info-text); }
+  .msg-ok   { background: var(--msg-ok-bg);   border-color: var(--msg-ok-border);   color: var(--msg-ok-text);   }
+  .msg-warn { background: var(--msg-warn-bg);  border-color: var(--msg-warn-border);  color: var(--msg-warn-text);  }
+  .msg-err  { background: var(--msg-err-bg);   border-color: var(--msg-err-border);   color: var(--msg-err-text);   }
+
+  /* ── Chart mode tabs ── */
+  .chart-mode-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tab-btn {
+    padding: 3px 10px;
+    border: 1px solid var(--ctrl-border);
+    border-radius: 5px;
+    background: var(--ctrl-bg);
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--ctrl-text);
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .tab-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .single-type-select { margin-left: 8px; font-size: 12px; height: 26px; padding: 2px 6px; width: auto; }
+
+  /* ── Chart area ── */
+  #chart-container { flex: 1; min-height: 400px; position: relative; }
+  #chart-plot { width: 100%; height: 100%; }
+
+  /* ── KPI cards ── */
+  .kpi-card { margin: 8px 0; }
+  .kpi-label { font-size: 12px; color: #6b7785; margin-bottom: 2px; }
+  .kpi-value { font-size: 26px; font-weight: 400; line-height: 1.2; letter-spacing: -.01em; }
+  .kpi-ok   { color: var(--kpi-ok); }
+  .kpi-fail { color: var(--kpi-fail); }
+  .kpi-neutral { color: var(--ctrl-text); }
+  .kpi-sep { border: none; border-top: 1px solid var(--divider); margin: 10px 0; }
+
+  /* ── Status bar ── */
+  .statusbar {
+    font-size: 11px;
+    color: #9aa6b5;
+    padding: 4px 14px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── Modal ── */
+  .modal-bg {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.35);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal-box {
+    background: #fff;
+    border-radius: 10px;
+    padding: 24px 28px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  }
+  .modal-title { font-size: 17px; font-weight: 600; color: var(--accent-deep); margin-bottom: 12px; }
+  .modal-body  { font-size: 13px; line-height: 1.7; color: #2a3a4a; }
+  .modal-close {
+    float: right;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    color: #9aa6b5;
+    border: none;
+    background: none;
+    margin-left: 8px;
+  }
+  .modal-close:hover { color: var(--accent-deep); }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .workspace { flex-direction: column; }
+    .col-left, .col-center, .col-right { flex: none; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TOP NAV ═══════════ -->
+<nav class="top-nav">
+  <span class="brand">Battery Pack PRV Sizing Tool</span>
+  <button class="nav-btn" onclick="openModal('modal-intro')">Introduction</button>
+  <button class="nav-btn" onclick="openModal('modal-theory')">Theory</button>
+  <button class="nav-btn" onclick="openModal('modal-privacy')">Privacy</button>
+  <div class="nav-spacer"></div>
+  <div class="conn-bar">
+    <label>API Endpoint</label>
+    <input id="conn-endpoint" type="url" placeholder="https://your-api-endpoint.example.com" />
+    <label>X-API-Key</label>
+    <input id="conn-apikey" type="password" placeholder="your-api-key" />
+  </div>
+</nav>
+
+<!-- ═══════════ SHELL ═══════════ -->
+<div class="shell">
+  <div class="workspace">
+
+    <!-- ═══ LEFT: INPUT PARAMETERS ═══ -->
+    <div class="col-left">
+      <div class="panel">
+        <div class="panel-title">Input Parameters</div>
+
+        <!-- Pack Geometry -->
+        <div class="group-title">Battery Pack Geometry</div>
+
+        <div class="field-row">
+          <span class="field-label">Void Volume in Pack</span>
+          <div class="field-value"><input type="number" id="v-pack" value="30" min="0.001" step="0.1"></div>
+          <div class="field-unit">
+            <select id="v-pack-unit">
+              <option value="L" selected>L</option>
+              <option value="m3">m³</option>
+              <option value="in3">in³</option>
+              <option value="ft3">ft³</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <span class="field-label">Max Pressure Limit (Relative to Ambient)</span>
+          <div class="field-value"><input type="number" id="pack-limit" value="50" min="0" step="1"></div>
+          <div class="field-unit">
+            <select id="pack-limit-unit">
+              <option value="kPa" selected>kPa</option>
+              <option value="Pa">Pa</option>
+              <option value="bar">bar</option>
+              <option value="psi">psi</option>
+            </select>
+          </div>
+        </div>
+
+        <hr class="group-sep">
+
+        <!-- Working Conditions -->
+        <div class="group-title">Working Conditions</div>
+
+        <div class="field-row">
+          <span class="field-label">Ambient Pressure</span>
+          <div class="field-value"><input type="number" id="p-atm" value="101.325" min="0.001" step="0.1"></div>
+          <div class="field-unit">
+            <select id="p-atm-unit">
+              <option value="kPa" selected>kPa</option>
+              <option value="Pa">Pa</option>
+              <option value="bar">bar</option>
+              <option value="psi">psi</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <span class="field-label">Initial Temperature</span>
+          <div class="field-value"><input type="number" id="t-init" value="25" step="1"></div>
+          <div class="field-unit">
+            <select id="t-init-unit">
+              <option value="C" selected>°C</option>
+              <option value="K">K</option>
+              <option value="F">°F</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <span class="field-label">Temperature Mode</span>
+          <select id="t-mode" class="full-w" style="flex:1 1 0; margin-left:6px;">
+            <option value="Assumed Constant" selected>Assumed Constant</option>
+            <option value="Given Test Data" disabled title="Upload mode not yet supported in API mode">Given Test Data</option>
+          </select>
+        </div>
+
+        <hr class="group-sep">
+
+        <!-- Cell Venting Data -->
+        <div class="group-title">Cell Venting Data</div>
+
+        <div class="field-row">
+          <span class="field-label">Data Source</span>
+          <select id="gas-source" class="full-w" style="flex:1 1 0; margin-left:6px;">
+            <option value="Database" selected>Database</option>
+          </select>
+        </div>
+
+        <div class="field-row" id="cell-db-row">
+          <span class="field-label">Cell Selection</span>
+          <select id="cell-db-select" class="full-w" style="flex:1 1 0; margin-left:6px;">
+            <option value="">Loading…</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <span class="field-label">Number of Venting Cells</span>
+          <div class="field-value"><input type="number" id="cell-count" value="1" min="1" max="500" step="1"></div>
+        </div>
+
+        <hr class="group-sep">
+
+        <!-- PRV Characteristic -->
+        <div class="group-title">Pressure Relief Valve Characteristic</div>
+
+        <div class="field-row">
+          <span class="field-label">Data Source</span>
+          <select id="valve-source" class="full-w" style="flex:1 1 0; margin-left:6px;">
+            <option value="Database" selected>Database</option>
+          </select>
+        </div>
+
+        <div class="field-row" id="valve-db-row">
+          <span class="field-label">Valve Selection</span>
+          <select id="valve-db-select" class="full-w" style="flex:1 1 0; margin-left:6px;">
+            <option value="">Loading…</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <span class="field-label">Number of Valves</span>
+          <div class="field-value"><input type="number" id="valve-count" value="1" min="1" max="50" step="1"></div>
+        </div>
+
+      </div><!-- /panel -->
+    </div><!-- /col-left -->
+
+    <!-- ═══ CENTER ═══ -->
+    <div class="col-center">
+
+      <!-- Simulation Operations -->
+      <div class="panel" style="flex: 0 0 auto;">
+        <div class="panel-title">Simulation Operations</div>
+        <div class="sim-ops-row">
+          <span class="field-label">Simulation Time (s)</span>
+          <input type="number" id="t-max-input" value="60" min="1" step="1">
+          <button class="btn btn-run" id="btn-run" onclick="runSimulation()">▶ Run Simulation</button>
+          <button class="btn btn-sec" id="btn-csv" onclick="exportCSV()" disabled>Export Data</button>
+          <button class="btn btn-sec" id="btn-pdf" onclick="exportPDF()" disabled>Download Report</button>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="panel" style="flex: 0 0 auto;">
+        <div class="panel-title">Messages</div>
+        <div class="msg-panel" id="msg-panel"></div>
+      </div>
+
+      <!-- Results Visualization -->
+      <div class="panel" style="flex: 1; display: flex; flex-direction: column; min-height: 420px;">
+        <div class="panel-title">Results Visualization</div>
+        <div class="chart-mode-tabs">
+          <button class="tab-btn active" id="tab-single" onclick="setChartMode('single')">Single Chart</button>
+          <button class="tab-btn"        id="tab-grid"   onclick="setChartMode('grid')">Four Grid</button>
+          <button class="tab-btn"        id="tab-vstack" onclick="setChartMode('vstack')">Vertical Stack</button>
+          <select class="single-type-select" id="single-type" onchange="renderChart()">
+            <option value="Pressure" selected>Pressure</option>
+            <option value="Temperature">Temperature</option>
+            <option value="Gas Mole">Gas Mole</option>
+            <option value="Valve Flow and Status">Valve Flow and Status</option>
+          </select>
+        </div>
+        <div id="chart-container" style="flex:1; min-height:380px;">
+          <div id="chart-plot" style="width:100%;height:100%;"></div>
+        </div>
+      </div>
+
+    </div><!-- /col-center -->
+
+    <!-- ═══ RIGHT: KPI ═══ -->
+    <div class="col-right">
+      <div class="panel">
+        <div class="panel-title">KPI</div>
+
+        <div class="kpi-card">
+          <div class="kpi-label">Absolute Peak Pressure</div>
+          <div class="kpi-value kpi-neutral" id="kpi-peak">—</div>
+        </div>
+        <hr class="kpi-sep">
+
+        <div class="kpi-card">
+          <div class="kpi-label">Relative Peak Pressure</div>
+          <div class="kpi-value kpi-neutral" id="kpi-rel-peak">—</div>
+        </div>
+        <hr class="kpi-sep">
+
+        <div class="kpi-card">
+          <div class="kpi-label">Valve Opened</div>
+          <div class="kpi-value kpi-neutral" id="kpi-valve-opened">—</div>
+        </div>
+        <hr class="kpi-sep">
+
+        <div class="kpi-card">
+          <div class="kpi-label">First Open Time</div>
+          <div class="kpi-value kpi-neutral" id="kpi-open-time">—</div>
+        </div>
+        <hr class="kpi-sep">
+
+        <div style="font-size:11px; color:#9aa6b5; line-height:1.5; margin-top:8px;">
+          <strong>Disclaimer:</strong> Simulation results may differ from actual measurements and are for reference only. All input data is not stored.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /workspace -->
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <span>© 2026 Thermal Maverick · Battery Pack PRV Sizing Tool v1.0</span>
+    <span id="last-run-label"></span>
+  </div>
+</div><!-- /shell -->
+
+<!-- ═══════════ MODALS ═══════════ -->
+<div class="modal-bg" id="modal-intro" onclick="closeModalBg(event,'modal-intro')">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-intro')">✕</button>
+    <div class="modal-title">Introduction</div>
+    <div class="modal-body">
+      <p>This tool provides a lumped-parameter model for estimating the internal absolute pressure of a battery pack during a thermal runaway event, and assesses when a Pressure Relief Valve (PRV) opens.</p>
+      <br>
+      <p><strong>Key features:</strong></p>
+      <ul style="margin-left:1.2em; margin-top:6px; line-height:2;">
+        <li>BDF (implicit) ODE integration via SciPy for stiff systems</li>
+        <li>Spring valve (reversible) and Membrane valve (irreversible) models</li>
+        <li>P-Q curve interpolation for valve flow rate</li>
+        <li>Interactive Plotly charts with three display modes</li>
+        <li>PDF report generation</li>
+      </ul>
+      <br>
+      <p><strong>⚠ DEMO DATA NOTICE:</strong> The built-in cell and valve databases contain fabricated demonstration data only. They are not representative of any real product.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-theory" onclick="closeModalBg(event,'modal-theory')">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-theory')">✕</button>
+    <div class="modal-title">Theory & Model</div>
+    <div class="modal-body">
+      <p><strong>Governing Equation</strong> (lumped parameter, ideal gas):</p>
+      <pre style="background:#f2f5f9; padding:10px; border-radius:6px; font-size:12px; margin:10px 0; overflow-x:auto;">
+dP/dt = (P/T)·(dT/dt) + (R·T/V)·(dn/dt) − (P·Q_out)/V</pre>
+      <p>where P = absolute pressure (Pa), T = temperature (K), V = pack void volume (m³), n = total gas moles (mol), Q_out = volumetric flow through valve (m³/s), R = 8.314 J/(mol·K).</p>
+      <br>
+      <p><strong>Valve Models:</strong></p>
+      <ul style="margin-left:1.2em; margin-top:6px; line-height:2.2;">
+        <li><strong>Spring:</strong> Reversible. Switches to after-curve when P exceeds opening setpoint; reseats when P drops below closing threshold (hysteresis).</li>
+        <li><strong>Membrane:</strong> Irreversible. Once P reaches opening setpoint, permanently latched open (two-segment integration).</li>
+      </ul>
+      <br>
+      <p><strong>Numerical Method:</strong> scipy.integrate.solve_ivp with BDF method, rtol = atol = 1×10⁻⁸.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-privacy" onclick="closeModalBg(event,'modal-privacy')">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-privacy')">✕</button>
+    <div class="modal-title">Privacy & Disclaimer</div>
+    <div class="modal-body">
+      <p>This tool does <strong>not store</strong> any user-supplied input data or simulation results on any server. All computation is performed transiently; results are returned in the API response and are not retained.</p>
+      <br>
+      <p>Your API key is stored locally in your browser's <code>localStorage</code> and is transmitted only to the API endpoint you configure. It is never sent to any third party.</p>
+      <br>
+      <p><strong>Disclaimer:</strong> Simulation results are provided for engineering reference only and may differ significantly from actual measurements. The author accepts no liability for decisions made based on this tool's output.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ JAVASCRIPT ═══════════ -->
+<script>
+// ── Unit conversion maps ──
+const P_MAP  = { Pa: 1, kPa: 1e3, bar: 1e5, psi: 6894.757 };
+const V_MAP  = { m3: 1, L: 1e-3, in3: 1.6387064e-5, ft3: 0.028316846592 };
+const T_TO_K = { C: v => v + 273.15, K: v => v, F: v => (v - 32) * 5/9 + 273.15 };
+const FLOW_TO_LPM = 60000; // m³/s → L/min
+
+// ── State ──
+let lastResult  = null;  // SolveResponse from API
+let lastPayload = null;  // SolveRequest sent
+let chartMode   = 'single';
+const MAX_MSGS  = 30;
+
+// ── Plotly colours (match Streamlit version) ──
+const C = {
+  pressure:    '#1f77b4',
+  ambient:     '#6F86A8',
+  temperature: '#ff7f0e',
+  gasMole:     '#2ca02c',
+  flow:        '#d62728',
+  valveStatus: '#9467bd',
+};
+
+// ── localStorage persistence ──
+window.addEventListener('load', () => {
+  const ep  = localStorage.getItem('prv_endpoint') || '';
+  const key = localStorage.getItem('prv_apikey')   || '';
+  document.getElementById('conn-endpoint').value = ep;
+  document.getElementById('conn-apikey').value   = key;
+  document.getElementById('conn-endpoint').addEventListener('change', saveConn);
+  document.getElementById('conn-apikey').addEventListener('change', saveConn);
+  fetchDatabases();
+  renderChart();
+});
+
+function saveConn() {
+  localStorage.setItem('prv_endpoint', document.getElementById('conn-endpoint').value.trim());
+  localStorage.setItem('prv_apikey',   document.getElementById('conn-apikey').value.trim());
+}
+
+// ── Helpers ──
+function apiBase() { return document.getElementById('conn-endpoint').value.trim().replace(/\/$/, ''); }
+function apiKey()  { return document.getElementById('conn-apikey').value.trim(); }
+
+function addMsg(text, type='info') {
+  const panel = document.getElementById('msg-panel');
+  if (panel.children.length >= MAX_MSGS) panel.lastElementChild?.remove();
+  const el = document.createElement('div');
+  el.className = `msg-item msg-${type}`;
+  el.textContent = text;
+  panel.prepend(el);
+}
+
+function updateLastRun() {
+  const now = new Date().toLocaleString();
+  document.getElementById('last-run-label').textContent = `Last run: ${now}`;
+}
+
+// ── Load databases ──
+async function fetchDatabases() {
+  const base = apiBase(), key = apiKey();
+  if (!base) { addMsg('Set API Endpoint to load databases.', 'warn'); return; }
+  try {
+    const [cRes, vRes] = await Promise.all([
+      fetch(`${base}/databases/cells`,  { headers: { 'X-API-Key': key } }),
+      fetch(`${base}/databases/valves`, { headers: { 'X-API-Key': key } }),
+    ]);
+    if (!cRes.ok) throw new Error(`Cells: ${cRes.status} ${cRes.statusText}`);
+    if (!vRes.ok) throw new Error(`Valves: ${vRes.status} ${vRes.statusText}`);
+    const cells  = await cRes.json();
+    const valves = await vRes.json();
+    populateSelect('cell-db-select',  cells.entries,  e => `[${e.id}] ${e.cell_model} (${e.cell_chemistry}, ${e.cell_capacity_ah}Ah)`);
+    populateSelect('valve-db-select', valves.entries, e => `[${e.id}] ${e.valve_model} (${e.valve_type}, ${e.opening_pressure_kpa}kPa)`);
+    addMsg(`Databases loaded: ${cells.count} cells, ${valves.count} valves.`, 'ok');
+  } catch(e) {
+    addMsg(`Failed to load databases: ${e.message}`, 'err');
+  }
+}
+
+function populateSelect(id, entries, labelFn) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '';
+  entries.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id;
+    opt.textContent = labelFn(e);
+    sel.appendChild(opt);
+  });
+}
+
+// ── Build request payload ──
+function buildPayload() {
+  const vPackRaw = parseFloat(document.getElementById('v-pack').value);
+  const vUnit    = document.getElementById('v-pack-unit').value;
+  const pAtmRaw  = parseFloat(document.getElementById('p-atm').value);
+  const pUnit    = document.getElementById('p-atm-unit').value;
+  const tRaw     = parseFloat(document.getElementById('t-init').value);
+  const tUnit    = document.getElementById('t-init-unit').value;
+  const tMax     = parseFloat(document.getElementById('t-max-input').value);
+
+  if ([vPackRaw, pAtmRaw, tRaw, tMax].some(isNaN)) throw new Error('All numeric fields must be filled.');
+  if (vPackRaw <= 0) throw new Error('Void Volume must be positive.');
+  if (pAtmRaw <= 0)  throw new Error('Ambient Pressure must be positive.');
+  if (tMax <= 0)     throw new Error('Simulation Time must be positive.');
+
+  const vPackSI = vPackRaw * V_MAP[vUnit];
+  const pAtmSI  = pAtmRaw  * P_MAP[pUnit];
+  const tK      = T_TO_K[tUnit](tRaw);
+  if (tK <= 0) throw new Error('Temperature must result in a positive Kelvin value.');
+
+  const cellId  = document.getElementById('cell-db-select').value;
+  const valveId = document.getElementById('valve-db-select').value;
+  if (!cellId)  throw new Error('Select a cell from the database.');
+  if (!valveId) throw new Error('Select a valve from the database.');
+
+  return {
+    v_pack:      vPackSI,
+    p_atm:       pAtmSI,
+    t_max:       tMax,
+    t_mode:      'Assumed Constant',
+    t_const:     tK,
+    cell_count:  parseInt(document.getElementById('cell-count').value) || 1,
+    valve_count: parseInt(document.getElementById('valve-count').value) || 1,
+    cell_db_id:  cellId,
+    valve_db_id: valveId,
+    max_points:  1000,
+  };
+}
+
+// ── Run simulation ──
+async function runSimulation() {
+  const runBtn = document.getElementById('btn-run');
+  runBtn.disabled = true;
+  runBtn.textContent = '⏳ Running…';
+  try {
+    const payload = buildPayload();
+    lastPayload   = payload;
+    addMsg('Sending request to solver…', 'info');
+
+    const res = await fetch(`${apiBase()}/solve`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body:    JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    lastResult = await res.json();
+    updateKPI(lastResult.kpi, payload.p_atm);
+    renderChart();
+    document.getElementById('btn-csv').disabled = false;
+    document.getElementById('btn-pdf').disabled = false;
+    const { solver_points, returned_points, solve_time_ms } = lastResult.meta;
+    addMsg(`Simulation complete. Peak: ${lastResult.kpi.peak_pressure_kpa.toFixed(2)} kPa. Solve: ${solve_time_ms} ms. Points: ${returned_points}/${solver_points}.`, 'ok');
+    updateLastRun();
+    postLocalResults(lastResult.kpi, payload);
+  } catch(e) {
+    addMsg(`Error: ${e.message}`, 'err');
+  } finally {
+    runBtn.disabled  = false;
+    runBtn.textContent = '▶ Run Simulation';
+  }
+}
+
+// ── Update KPI cards ──
+function updateKPI(kpi, pAtmPa) {
+  const packLimitRaw  = parseFloat(document.getElementById('pack-limit').value) || Infinity;
+  const packLimitUnit = document.getElementById('pack-limit-unit').value;
+  const packLimitKPa  = packLimitRaw * P_MAP[packLimitUnit] / 1000;
+
+  const peakOk  = kpi.relative_peak_pressure_kpa <= packLimitKPa;
+
+  setKPI('kpi-peak',        `${kpi.peak_pressure_kpa.toFixed(2)} kPa`,     peakOk ? 'ok' : 'fail');
+  setKPI('kpi-rel-peak',    `${kpi.relative_peak_pressure_kpa.toFixed(2)} kPa`, 'neutral');
+  setKPI('kpi-valve-opened', kpi.valve_opened ? 'Yes' : 'No',              kpi.valve_opened ? 'ok' : 'neutral');
+  setKPI('kpi-open-time',
+    kpi.first_open_time_s !== null ? `${kpi.first_open_time_s.toFixed(2)} s` : '—', 'neutral');
+}
+
+function setKPI(id, text, state) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className   = `kpi-value kpi-${state}`;
+}
+
+// ── Chart mode ──
+function setChartMode(mode) {
+  chartMode = mode;
+  ['single','grid','vstack'].forEach(m => {
+    document.getElementById(`tab-${m}`).classList.toggle('active', m === mode);
+  });
+  document.getElementById('single-type').style.display = mode === 'single' ? '' : 'none';
+  renderChart();
+}
+
+// ── Chart rendering ──
+function renderChart() {
+  const el = document.getElementById('chart-plot');
+  if (chartMode === 'single')  renderSingle(el);
+  else if (chartMode === 'grid')   renderFourGrid(el);
+  else if (chartMode === 'vstack') renderVertStack(el);
+}
+
+const AXIS_STYLE = {
+  showgrid: true, gridcolor: '#dbe4f0', gridwidth: 1,
+  zeroline: false, showline: true, linewidth: 1, linecolor: '#cfd8e3',
+  ticks: 'outside', tickfont: { color: '#6b7785' }, title_font: { color: '#1a2332' },
+};
+const PLOTLY_CFG = { displaylogo: false, responsive: true };
+
+function baseLayout(overrides={}) {
+  return {
+    paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
+    font: { family: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', size: 12 },
+    margin: { l: 72, r: 72, t: 56, b: 60 },
+    hovermode: 'x unified',
+    ...overrides,
+  };
+}
+
+function renderSingle(el) {
+  const type  = document.getElementById('single-type').value;
+  const d     = lastResult?.timeseries;
+  const hasD  = !!d;
+  const pAtmKPa = lastPayload ? lastPayload.p_atm / 1000 : null;
+
+  const titles = {
+    'Pressure':              { title: 'Absolute Pressure in Pack',                       yaxis: 'Absolute Pressure (kPa)' },
+    'Temperature':           { title: 'Temperature in Pack',                             yaxis: 'Temperature (°C)' },
+    'Gas Mole':              { title: 'Total Venting Gas Mole',                          yaxis: 'Gas Mole (mol)' },
+    'Valve Flow and Status': { title: 'Total Flow Rate & PRV Status (0=Close, 1=Open)',  yaxis: 'Flow Rate (L/min)' },
+  };
+  const { title, yaxis } = titles[type];
+
+  const traces = [];
+  if (type === 'Pressure' && pAtmKPa !== null) {
+    const xRange = hasD ? [d.time_s[0], d.time_s.at(-1)] : [0, 60];
+    traces.push({ x: xRange, y: [pAtmKPa, pAtmKPa], mode: 'lines', name: 'Ambient Pressure',
+      line: { color: C.ambient, dash: 'dash', width: 2 }, hovertemplate: 'Ambient<br>%{y:.4f} kPa<extra></extra>' });
+  }
+  if (hasD) {
+    if (type === 'Pressure') {
+      traces.push({ x: d.time_s, y: d.pressure_kpa, mode: 'lines', name: 'Pressure',
+        line: { color: C.pressure, width: 2 }, hovertemplate: 'Pressure<br>%{y:.4f} kPa<extra></extra>' });
+    } else if (type === 'Temperature') {
+      traces.push({ x: d.time_s, y: d.temperature_c, mode: 'lines', name: 'Temperature',
+        line: { color: C.temperature, width: 2 }, hovertemplate: 'Temperature<br>%{y:.2f} °C<extra></extra>' });
+    } else if (type === 'Gas Mole') {
+      traces.push({ x: d.time_s, y: d.molar_amount_mol, mode: 'lines', name: 'Gas Mole',
+        line: { color: C.gasMole, width: 2 }, hovertemplate: 'Gas Mole<br>%{y:.4f} mol<extra></extra>' });
+    } else {
+      const flowLpm = d.flow_rate_m3s.map(v => v * FLOW_TO_LPM);
+      traces.push({ x: d.time_s, y: flowLpm, mode: 'lines', name: 'Flow Rate',
+        line: { color: C.flow, width: 2 }, hovertemplate: 'Flow<br>%{y:.4f} L/min<extra></extra>',
+        yaxis: 'y' });
+      traces.push({ x: d.time_s, y: d.valve_status, mode: 'lines', name: 'Valve Status',
+        line: { color: C.valveStatus, width: 2, dash: 'dot' }, hovertemplate: 'Status<br>%{y}<extra></extra>',
+        yaxis: 'y2' });
+    }
+  }
+
+  const isValve = type === 'Valve Flow and Status';
+  const layout  = baseLayout({
+    title:     { text: title, x: 0.5, xanchor: 'center', font: { color: '#3d5169', size: 14 } },
+    xaxis:     { title: 'Time (s)', ...AXIS_STYLE },
+    yaxis:     { title: yaxis, ...AXIS_STYLE },
+    showlegend: hasD,
+    margin: { l: 72, r: isValve ? 64 : 72, t: 80, b: 60 },
+  });
+  if (isValve) {
+    layout.yaxis2 = { title: 'Valve Status (0/1)', overlaying: 'y', side: 'right',
+      range: [-0.1, 1.1], ...AXIS_STYLE };
+  }
+  Plotly.react(el, traces, layout, PLOTLY_CFG);
+}
+
+function renderFourGrid(el) {
+  const d    = lastResult?.timeseries;
+  const hasD = !!d;
+  const pAtmKPa = lastPayload ? lastPayload.p_atm / 1000 : null;
+
+  const traces = [];
+  if (hasD) {
+    const flowLpm = d.flow_rate_m3s.map(v => v * FLOW_TO_LPM);
+    if (pAtmKPa !== null) {
+      traces.push({ x: [d.time_s[0], d.time_s.at(-1)], y: [pAtmKPa, pAtmKPa],
+        mode: 'lines', name: 'Ambient', xaxis: 'x', yaxis: 'y',
+        line: { color: C.ambient, dash: 'dash', width: 1.5 }, showlegend: false });
+    }
+    traces.push({ x: d.time_s, y: d.pressure_kpa,   mode: 'lines', name: 'Pressure',    xaxis: 'x',  yaxis: 'y',  line: { color: C.pressure,    width: 2 } });
+    traces.push({ x: d.time_s, y: d.temperature_c,  mode: 'lines', name: 'Temperature', xaxis: 'x2', yaxis: 'y2', line: { color: C.temperature, width: 2 } });
+    traces.push({ x: d.time_s, y: d.molar_amount_mol,mode:'lines', name: 'Gas Mole',    xaxis: 'x3', yaxis: 'y3', line: { color: C.gasMole,     width: 2 } });
+    traces.push({ x: d.time_s, y: flowLpm,           mode: 'lines', name: 'Flow Rate',   xaxis: 'x4', yaxis: 'y4', line: { color: C.flow,        width: 2 } });
+    traces.push({ x: d.time_s, y: d.valve_status,    mode: 'lines', name: 'Valve Status',xaxis: 'x4', yaxis: 'y5',
+      line: { color: C.valveStatus, width: 2, dash: 'dot' } });
+  }
+
+  const grid = { rows: 2, columns: 2, pattern: 'independent' };
+  const annotations = [
+    { text: 'Absolute Pressure in Pack',                      xref:'paper', yref:'paper', x:0.225, y:1.04, showarrow:false, font:{color:'#3d5169',size:12} },
+    { text: 'Temperature in Pack',                            xref:'paper', yref:'paper', x:0.775, y:1.04, showarrow:false, font:{color:'#3d5169',size:12} },
+    { text: 'Total Venting Gas Mole',                         xref:'paper', yref:'paper', x:0.225, y:0.46, showarrow:false, font:{color:'#3d5169',size:12} },
+    { text: 'Total Flow Rate & PRV Status (0=Close, 1=Open)', xref:'paper', yref:'paper', x:0.775, y:0.46, showarrow:false, font:{color:'#3d5169',size:12} },
+  ];
+  const axBase = { ...AXIS_STYLE, title: { text: 'Time (s)' } };
+  const layout = {
+    grid, annotations,
+    paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
+    height: 640, margin: { l: 68, r: 68, t: 72, b: 64 },
+    showlegend: false,
+    hovermode: 'x unified', hoversubplots: 'axis',
+    xaxis:  { ...axBase }, xaxis2: { ...axBase }, xaxis3: { ...axBase }, xaxis4: { ...axBase },
+    yaxis:  { title: 'Absolute Pressure (kPa)',  ...AXIS_STYLE },
+    yaxis2: { title: 'Temperature (°C)',         ...AXIS_STYLE },
+    yaxis3: { title: 'Gas Mole (mol)',           ...AXIS_STYLE },
+    yaxis4: { title: 'Flow Rate (L/min)',        ...AXIS_STYLE },
+    yaxis5: { title: 'Valve Status (0/1)', overlaying: 'y4', side: 'right', range: [-0.1, 1.1], ...AXIS_STYLE },
+  };
+  Plotly.react(el, traces, layout, PLOTLY_CFG);
+}
+
+function renderVertStack(el) {
+  const d    = lastResult?.timeseries;
+  const hasD = !!d;
+  const pAtmKPa = lastPayload ? lastPayload.p_atm / 1000 : null;
+
+  const traces = [];
+  if (hasD) {
+    const flowLpm = d.flow_rate_m3s.map(v => v * FLOW_TO_LPM);
+    if (pAtmKPa !== null) {
+      traces.push({ x: [d.time_s[0], d.time_s.at(-1)], y: [pAtmKPa, pAtmKPa],
+        mode: 'lines', xaxis: 'x', yaxis: 'y',
+        line: { color: C.ambient, dash: 'dash', width: 1.5 }, showlegend: false, name: 'Ambient' });
+    }
+    traces.push({ x: d.time_s, y: d.pressure_kpa,    mode:'lines', xaxis:'x',  yaxis:'y',  name:'Pressure',    line:{color:C.pressure,    width:2} });
+    traces.push({ x: d.time_s, y: d.temperature_c,   mode:'lines', xaxis:'x',  yaxis:'y2', name:'Temperature', line:{color:C.temperature, width:2} });
+    traces.push({ x: d.time_s, y: d.molar_amount_mol,mode:'lines', xaxis:'x',  yaxis:'y3', name:'Gas Mole',    line:{color:C.gasMole,     width:2} });
+    traces.push({ x: d.time_s, y: flowLpm,           mode:'lines', xaxis:'x',  yaxis:'y4', name:'Flow Rate',   line:{color:C.flow,        width:2} });
+    traces.push({ x: d.time_s, y: d.valve_status,    mode:'lines', xaxis:'x',  yaxis:'y5', name:'Valve Status',line:{color:C.valveStatus, width:2, dash:'dot'} });
+  }
+
+  const vs = 0.048;
+  const annY = [1.0, 0.74, 0.49, 0.23];
+  const annLabels = [
+    'Absolute Pressure in Pack',
+    'Temperature in Pack',
+    'Total Venting Gas Mole',
+    'Total Flow Rate & PRV Status (0=Close, 1=Open)',
+  ];
+  const annotations = annLabels.map((text, i) => ({
+    text, xref:'paper', yref:'paper', x:0.5, y: annY[i] + 0.01,
+    showarrow:false, font:{color:'#3d5169', size:11}, xanchor:'center',
+  }));
+
+  const layout = {
+    paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff',
+    height: 820, margin: { l:72, r:68, t:52, b:60 },
+    showlegend: false,
+    annotations,
+    hovermode: 'x unified',
+    grid: { rows:4, columns:1, subplots:[['xy'],['xy2'],['xy3'],['xy4']], ygap: vs },
+    xaxis:  { title:'Time (s)', matches:'x', ...AXIS_STYLE },
+    yaxis:  { title:'Absolute Pressure (kPa)', ...AXIS_STYLE },
+    yaxis2: { title:'Temperature (°C)',        ...AXIS_STYLE },
+    yaxis3: { title:'Gas Mole (mol)',          ...AXIS_STYLE },
+    yaxis4: { title:'Flow Rate (L/min)',       ...AXIS_STYLE },
+    yaxis5: { title:'Valve Status (0/1)', overlaying:'y4', side:'right', range:[-0.1,1.1], ...AXIS_STYLE },
+  };
+  Plotly.react(el, traces, layout, PLOTLY_CFG);
+}
+
+// ── Export CSV ──
+function exportCSV() {
+  if (!lastResult || !lastPayload) return;
+  const d = lastResult.timeseries;
+  const pAtmKPa = lastPayload.p_atm / 1000;
+  const flowLpm = d.flow_rate_m3s.map(v => v * FLOW_TO_LPM);
+  const lines = ['Time (s),Ambient Pressure (kPa),Temperature (°C),Gas Mole (mol),Absolute Pressure (kPa),Relative Pressure (kPa),Valve Status,Flow Rate (L/min)'];
+  for (let i = 0; i < d.time_s.length; i++) {
+    lines.push([
+      d.time_s[i].toFixed(6),
+      pAtmKPa.toFixed(6),
+      d.temperature_c[i].toFixed(4),
+      d.molar_amount_mol[i].toFixed(6),
+      d.pressure_kpa[i].toFixed(6),
+      (d.pressure_kpa[i] - pAtmKPa).toFixed(6),
+      d.valve_status[i],
+      flowLpm[i].toFixed(6),
+    ].join(','));
+  }
+  downloadBlob(lines.join('\n'), 'simulation_result.csv', 'text/csv');
+}
+
+// ── Export PDF ──
+async function exportPDF() {
+  if (!lastPayload) return;
+  document.getElementById('btn-pdf').disabled = true;
+  addMsg('Generating PDF report…', 'info');
+  try {
+    const res = await fetch(`${apiBase()}/report`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey() },
+      body:    JSON.stringify(lastPayload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    const blob = await res.blob();
+    downloadBlob(blob, 'prv_sizing_report.pdf', 'application/pdf');
+    addMsg('PDF report downloaded.', 'ok');
+  } catch(e) {
+    addMsg(`PDF error: ${e.message}`, 'err');
+  } finally {
+    document.getElementById('btn-pdf').disabled = false;
+  }
+}
+
+function downloadBlob(content, filename, mime) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Post results to local relay server (for Claude to read) ──
+async function postLocalResults(kpi, payload) {
+  // Numeric fields are sent as JSON numbers (not strings) so SKILL.md's
+  // PowerShell fallback can use them directly without parsing/casting.
+  const summary = {
+    peak_pressure_kpa:          kpi.peak_pressure_kpa,
+    relative_peak_pressure_kpa: kpi.relative_peak_pressure_kpa,
+    valve_opened:               kpi.valve_opened,
+    first_open_time_s:          kpi.first_open_time_s,
+    cell_db_id:                 payload.cell_db_id,
+    valve_db_id:                payload.valve_db_id,
+    v_pack_L:                   payload.v_pack * 1000,
+    p_atm_kpa:                  payload.p_atm / 1000,
+    t_const_k:                  payload.t_const,
+    t_max_s:                    payload.t_max,
+    cell_count:                 payload.cell_count,
+    valve_count:                payload.valve_count,
+    timestamp:                  new Date().toISOString(),
+  };
+  // Relay-injected one-shot token; allows the relay to reject cross-site
+  // POSTs from other pages in the user's browser.
+  const tokenMeta = document.querySelector('meta[name="relay-token"]');
+  const relayToken = tokenMeta ? tokenMeta.content : '';
+  // If the placeholder was not replaced (e.g. the HTML is opened directly
+  // as a file:// resource for debugging), skip the relay POST entirely.
+  if (!relayToken || relayToken === '__RELAY_TOKEN__') return;
+  try {
+    await fetch('/local-results', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'X-Relay-Token': relayToken,
+      },
+      body: JSON.stringify(summary),
+    });
+  } catch {
+    // Relay server may not be running when testing directly in browser — silently ignore.
+  }
+}
+
+// ── Modal helpers ──
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModalBg(evt, id) { if (evt.target.id === id) closeModal(id); }
+
+// Hide single-type selector when not in single mode on load
+document.addEventListener('DOMContentLoaded', () => {
+  setChartMode('single');
+});
+</script>
+</body>
+</html>
