@@ -167,9 +167,20 @@ Call `prv_solve({...})` with the confirmed parameters.
    file.
 2. **Write `last_result.json`** at
    `~/.claude/skills/btms-prv-sizing/scripts/last_result.json`, using the
-   `/local-result-schema` field layout (identical to what the browser writes).
-   This lets the user later open the GUI with the form pre-filled, and gives
-   the HTTP-fallback re-run path something to read.
+   `/local-result-schema` field layout (identical to what the browser writes),
+   **plus two marker fields**:
+   ```json
+   { "...standard fields...": "...",
+     "__source__":     "mcp",
+     "__written_at__": <unix_seconds> }
+   ```
+   The `__source__` tag is critical — without it, the long-lived Step B3
+   watcher would mistake this MCP write for a GUI ▶ Run click and emit a
+   duplicate result. The relay tags its own writes as `"browser"`; the
+   watcher only emits when `__source__ == "browser"`.
+   
+   This file is used for: (1) pre-filling the GUI form if the user later
+   says "open the GUI", and (2) the HTTP-fallback re-run path.
 3. Close with:
    > "To re-run with different parameters, just tell me the new values.
    > To see interactive charts, export a PDF, or tune with sliders, say
@@ -285,24 +296,42 @@ Tell the user:
 > stuck on 'Loading…', the API is unreachable — re-run Pre-flight. Once
 > databases load, set your parameters and click ▶ Run."
 
-### Step B3 — Watch for results (background)
+### Step B3 — Watch for results (background, long-lived)
 
-Run with `run_in_background: true`:
+Run with `run_in_background: true`. The watcher must stay alive for the
+entire session so multiple ▶ Run clicks all get streamed back to chat —
+do **not** exit after the first hit.
+
+The watcher filters by `__source__` so that MCP-originated writes to
+`last_result.json` (see Step M4) **do not** trigger a fake "GUI result"
+emission. Only writes from the relay (which tags `__source__ == "browser"`)
+are emitted to stdout.
 
 ```bash
 python -c "
-import pathlib, time, sys
+import pathlib, time, json
 f = pathlib.Path.home() / '.claude' / 'skills' / 'btms-prv-sizing' / 'scripts' / 'last_result.json'
-init_mtime = f.stat().st_mtime if f.exists() else 0.0
+last_mtime = f.stat().st_mtime if f.exists() else 0.0
 while True:
     time.sleep(0.5)
-    if f.exists():
-        mt = f.stat().st_mtime
-        if mt > init_mtime:
-            print(f.read_text(encoding='utf-8'), flush=True)
-            sys.exit(0)
+    if not f.exists():
+        continue
+    mt = f.stat().st_mtime
+    if mt <= last_mtime:
+        continue
+    last_mtime = mt
+    try:
+        data = json.loads(f.read_text(encoding='utf-8'))
+    except Exception:
+        continue
+    if data.get('__source__') == 'browser':
+        print(json.dumps(data), flush=True)
 "
 ```
+
+Read each new line of the watcher's stdout via the **Monitor** tool — each
+JSON line is one ▶ Run click from the browser. There is no need (and no way)
+to re-launch the watcher between clicks.
 
 ### Step B4 — Report
 

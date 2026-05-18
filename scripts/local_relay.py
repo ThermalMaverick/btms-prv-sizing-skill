@@ -28,6 +28,7 @@ import os
 import pathlib
 import secrets
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 _HERE        = pathlib.Path(__file__).parent
@@ -95,6 +96,11 @@ class _RelayHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length)
         try:
             data = json.loads(body)
+            # Tag the write so the Skill's watcher can distinguish
+            # browser-originated results from MCP-originated writes. The
+            # watcher only emits new chat updates when __source__ == "browser".
+            data["__source__"] = "browser"
+            data["__written_at__"] = time.time()
             _RESULT_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
             self.send_response(200)
             self._cors()
