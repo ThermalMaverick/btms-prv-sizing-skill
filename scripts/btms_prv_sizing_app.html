@@ -191,6 +191,145 @@
   input[type="number"]:focus, select:focus { border-color: var(--ctrl-focus); }
   select.full-w { flex: 1 1 0; }
 
+  /* ── CSV upload row ── */
+  .csv-upload {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 6px;
+  }
+  .csv-upload input[type="file"] {
+    flex: 1 1 auto;
+    font-size: 12px;
+    color: var(--ctrl-text);
+    background: var(--ctrl-bg);
+    border: 1px solid var(--ctrl-border);
+    border-radius: 5px;
+    padding: 3px 6px;
+    height: 30px;
+    min-width: 0;
+  }
+  .csv-upload input[type="file"]::file-selector-button {
+    margin-right: 6px;
+    padding: 2px 8px;
+    border: 1px solid var(--ctrl-border);
+    border-radius: 4px;
+    background: var(--panel-bg);
+    color: var(--ctrl-text);
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .csv-upload-status {
+    font-size: 11px;
+    color: #6b7785;
+    margin: -3px 0 4px;
+    min-height: 14px;
+  }
+  .csv-upload-status.err { color: var(--msg-err-text); }
+  .csv-upload-status.ok  { color: var(--msg-ok-text); }
+  .hidden { display: none !important; }
+  .csv-map-block { padding: 4px 8px; border-left: 2px solid var(--accent); background: rgba(111,134,168,0.04); border-radius: 0 4px 4px 0; margin-bottom: 6px; }
+
+  /* ── Database selection display ── */
+  .db-selection-display {
+    margin: 2px 0 8px;
+    padding: 6px 10px;
+    background: var(--msg-ok-bg);
+    border-left: 3px solid var(--msg-ok-border);
+    color: var(--msg-ok-text);
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .db-selection-display.empty {
+    background: var(--msg-info-bg);
+    border-left-color: var(--msg-info-border);
+    color: var(--msg-info-text);
+  }
+
+  /* ── Wide database modal ── */
+  .modal-bg.db-modal .modal-box {
+    max-width: 1040px;
+    width: 92%;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .db-modal-table-wrap {
+    max-height: 280px;
+    overflow: auto;
+    border: 1px solid var(--divider);
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  table.db-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.db-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--panel-bg);
+    color: var(--accent-deep);
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--divider);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  table.db-table tbody td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #eef2f7;
+    white-space: nowrap;
+  }
+  table.db-table tbody tr { cursor: pointer; }
+  table.db-table tbody tr:hover { background: rgba(111,134,168,0.06); }
+  table.db-table tbody tr.selected { background: rgba(40, 167, 69, 0.10); }
+  table.db-table tbody tr.selected td { font-weight: 500; }
+
+  .db-modal-warning {
+    padding: 6px 10px;
+    background: var(--msg-warn-bg);
+    border-left: 3px solid var(--msg-warn-border);
+    color: var(--msg-warn-text);
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .db-modal-selection-line {
+    padding: 6px 10px;
+    background: var(--msg-info-bg);
+    border-left: 3px solid var(--msg-info-border);
+    color: var(--msg-info-text);
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+    margin: 10px 0;
+  }
+  .db-modal-preview {
+    border: 1px solid var(--divider);
+    border-radius: 6px;
+    padding: 6px;
+    min-height: 220px;
+    background: #fafbfd;
+  }
+  .db-modal-preview.dual { display: flex; gap: 8px; }
+  .db-modal-preview.dual > div { flex: 1; min-width: 0; height: 220px; }
+  .db-modal-preview.single > div { height: 220px; }
+  .db-modal-preview .preview-empty {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; color: #6b7785; font-size: 12px;
+  }
+  .db-modal-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
+  .db-modal-actions .btn-primary {
+    background: var(--run-bg); color: #fff; border-color: #1e7e34;
+    padding: 6px 18px; font-size: 13px;
+  }
+  .db-modal-actions .btn-primary:disabled {
+    background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text);
+    border-color: var(--ctrl-border); cursor: not-allowed;
+  }
+
   /* ── Sim Ops row ── */
   .sim-ops-row {
     display: flex;
@@ -426,8 +565,39 @@
           <span class="field-label">Temperature Mode</span>
           <select id="t-mode" class="full-w" style="flex:1 1 0; margin-left:6px;">
             <option value="Assumed Constant" selected>Assumed Constant</option>
-            <option value="Given Test Data" disabled title="Upload mode not yet supported in API mode">Given Test Data</option>
+            <option value="Given Test Data">Given Test Data</option>
           </select>
+        </div>
+
+        <!-- Temperature CSV (only when t-mode = Given Test Data) -->
+        <div id="temp-csv-block" class="csv-map-block hidden">
+          <div class="csv-upload">
+            <input type="file" id="temp-csv-file" accept=".csv,text/csv">
+          </div>
+          <div class="csv-upload-status" id="temp-csv-status"></div>
+          <div id="temp-csv-mapping" class="hidden">
+            <div class="field-row">
+              <span class="field-label">Time in Column</span>
+              <div class="field-value"><select id="temp-col-time" class="full-w"></select></div>
+              <div class="field-unit">
+                <select id="temp-unit-time">
+                  <option value="s" selected>s</option>
+                  <option value="min">min</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Temperature in Column</span>
+              <div class="field-value"><select id="temp-col-value" class="full-w"></select></div>
+              <div class="field-unit">
+                <select id="temp-unit-value">
+                  <option value="C" selected>°C</option>
+                  <option value="K">K</option>
+                  <option value="F">°F</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
         <hr class="group-sep">
@@ -439,14 +609,45 @@
           <span class="field-label">Data Source</span>
           <select id="gas-source" class="full-w" style="flex:1 1 0; margin-left:6px;">
             <option value="Database" selected>Database</option>
+            <option value="User Defined">User Defined</option>
           </select>
         </div>
 
-        <div class="field-row" id="cell-db-row">
-          <span class="field-label">Cell Selection</span>
-          <select id="cell-db-select" class="full-w" style="flex:1 1 0; margin-left:6px;">
-            <option value="">Loading…</option>
-          </select>
+        <div id="cell-db-row">
+          <div class="field-row">
+            <span class="field-label">Venting Data Selection</span>
+            <button type="button" class="btn btn-sec db-browse-btn" id="btn-cell-db-browse" onclick="openCellDbModal()" style="flex:1 1 0; margin-left:6px;">Browse database…</button>
+          </div>
+          <div class="db-selection-display" id="cell-db-display">No cell selected. Click <strong>Browse database…</strong> to choose.</div>
+        </div>
+
+        <!-- Cell user-defined CSV -->
+        <div id="cell-csv-block" class="csv-map-block hidden">
+          <div class="csv-upload">
+            <input type="file" id="cell-csv-file" accept=".csv,text/csv">
+          </div>
+          <div class="csv-upload-status" id="cell-csv-status"></div>
+          <div id="cell-csv-mapping" class="hidden">
+            <div class="field-row">
+              <span class="field-label">Time in Column</span>
+              <div class="field-value"><select id="cell-col-time" class="full-w"></select></div>
+              <div class="field-unit">
+                <select id="cell-unit-time">
+                  <option value="s" selected>s</option>
+                  <option value="min">min</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row">
+              <span class="field-label">Gas Mole in Column</span>
+              <div class="field-value"><select id="cell-col-mole" class="full-w"></select></div>
+              <div class="field-unit">
+                <select id="cell-unit-mole" disabled>
+                  <option value="mole" selected>mole</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="field-row">
@@ -463,14 +664,108 @@
           <span class="field-label">Data Source</span>
           <select id="valve-source" class="full-w" style="flex:1 1 0; margin-left:6px;">
             <option value="Database" selected>Database</option>
+            <option value="User Defined">User Defined</option>
           </select>
         </div>
 
-        <div class="field-row" id="valve-db-row">
-          <span class="field-label">Valve Selection</span>
-          <select id="valve-db-select" class="full-w" style="flex:1 1 0; margin-left:6px;">
-            <option value="">Loading…</option>
-          </select>
+        <div id="valve-db-row">
+          <div class="field-row">
+            <span class="field-label">Valve Selection</span>
+            <button type="button" class="btn btn-sec db-browse-btn" id="btn-valve-db-browse" onclick="openValveDbModal()" style="flex:1 1 0; margin-left:6px;">Browse database…</button>
+          </div>
+          <div class="db-selection-display" id="valve-db-display">No valve selected. Click <strong>Browse database…</strong> to choose.</div>
+        </div>
+
+        <!-- Valve user-defined: P-Q Before Opening -->
+        <div id="valve-csv-block" class="hidden">
+          <div class="csv-map-block">
+            <div class="field-label" style="font-weight:600; font-size:12px; color:var(--accent-deep); margin-bottom:4px;">P–Q Curve Before Opening</div>
+            <div class="csv-upload">
+              <input type="file" id="valve-before-file" accept=".csv,text/csv">
+            </div>
+            <div class="csv-upload-status" id="valve-before-status"></div>
+            <div id="valve-before-mapping" class="hidden">
+              <div class="field-row">
+                <span class="field-label">Pressure in Column</span>
+                <div class="field-value"><select id="valve-before-col-p" class="full-w"></select></div>
+                <div class="field-unit">
+                  <select id="valve-before-unit-p">
+                    <option value="kPa" selected>kPa</option>
+                    <option value="Pa">Pa</option>
+                    <option value="bar">bar</option>
+                    <option value="psi">psi</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Flow Rate in Column</span>
+                <div class="field-value"><select id="valve-before-col-q" class="full-w"></select></div>
+                <div class="field-unit">
+                  <select id="valve-before-unit-q">
+                    <option value="L/min" selected>L/min</option>
+                    <option value="m3/s">m³/s</option>
+                    <option value="m3/h">m³/h</option>
+                    <option value="CFM">CFM</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="csv-map-block">
+            <div class="field-label" style="font-weight:600; font-size:12px; color:var(--accent-deep); margin-bottom:4px;">P–Q Curve After Opening</div>
+            <div class="csv-upload">
+              <input type="file" id="valve-after-file" accept=".csv,text/csv">
+            </div>
+            <div class="csv-upload-status" id="valve-after-status"></div>
+            <div id="valve-after-mapping" class="hidden">
+              <div class="field-row">
+                <span class="field-label">Pressure in Column</span>
+                <div class="field-value"><select id="valve-after-col-p" class="full-w"></select></div>
+                <div class="field-unit">
+                  <select id="valve-after-unit-p">
+                    <option value="kPa" selected>kPa</option>
+                    <option value="Pa">Pa</option>
+                    <option value="bar">bar</option>
+                    <option value="psi">psi</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field-row">
+                <span class="field-label">Flow Rate in Column</span>
+                <div class="field-value"><select id="valve-after-col-q" class="full-w"></select></div>
+                <div class="field-unit">
+                  <select id="valve-after-unit-q">
+                    <option value="L/min" selected>L/min</option>
+                    <option value="m3/s">m³/s</option>
+                    <option value="m3/h">m³/h</option>
+                    <option value="CFM">CFM</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <span class="field-label">Valve Type</span>
+            <select id="valve-type-select" class="full-w" style="flex:1 1 0; margin-left:6px;">
+              <option value="Spring" selected>Spring</option>
+              <option value="Membrane">Membrane</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <span class="field-label">Opening Pressure (Rel.)</span>
+            <div class="field-value"><input type="number" id="valve-p-open" value="5" min="0.1" step="0.1"></div>
+            <div class="field-unit">
+              <select id="valve-p-open-unit">
+                <option value="kPa" selected>kPa</option>
+                <option value="Pa">Pa</option>
+                <option value="bar">bar</option>
+                <option value="psi">psi</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="field-row">
@@ -610,6 +905,56 @@ dP/dt = (P/T)·(dT/dt) + (R·T/V)·(dn/dt) − (P·Q_out)/V</pre>
   </div>
 </div>
 
+<!-- ═══════════ CELL DATABASE PICKER MODAL ═══════════ -->
+<div class="modal-bg db-modal" id="modal-cell-db" onclick="closeModalBg(event,'modal-cell-db')">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-cell-db')">✕</button>
+    <div class="modal-title">Venting Data Selection</div>
+    <div class="db-modal-warning">
+      <strong>Select a row</strong> in the table to preview its venting curve <strong>below</strong> and to enable <strong>Confirm Selection</strong>.
+    </div>
+    <div class="db-modal-table-wrap">
+      <table class="db-table" id="cell-db-table">
+        <thead><tr>
+          <th>NO.</th><th>Cell Model</th><th>Manufacturer</th><th>Capacity (Ah)</th>
+          <th>Chemistry</th><th>Shape</th><th>Venting Duration (s)</th><th>Total Gas Mole</th><th>Data Source</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="db-modal-preview single" id="cell-db-preview"><div class="preview-empty">Select a table row to preview <strong>gas mole vs. time</strong>.</div></div>
+    <div class="db-modal-selection-line hidden" id="cell-db-selection-line"></div>
+    <div class="db-modal-actions">
+      <button type="button" class="btn btn-primary" id="cell-db-confirm" disabled onclick="confirmCellDb()">Confirm Selection</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ VALVE DATABASE PICKER MODAL ═══════════ -->
+<div class="modal-bg db-modal" id="modal-valve-db" onclick="closeModalBg(event,'modal-valve-db')">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-valve-db')">✕</button>
+    <div class="modal-title">Valve Selection</div>
+    <div class="db-modal-warning">
+      <strong>Select a row</strong> in the table to preview its P-Q curves <strong>below</strong> and to enable <strong>Confirm Selection</strong>.
+    </div>
+    <div class="db-modal-table-wrap">
+      <table class="db-table" id="valve-db-table">
+        <thead><tr>
+          <th>NO.</th><th>Valve Model</th><th>Manufacturer</th><th>Valve Type</th>
+          <th>Opening Pressure (kPa)</th><th>Data Source</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="db-modal-preview dual" id="valve-db-preview"><div class="preview-empty">Select a table row to preview <strong>P-Q curves</strong>.</div></div>
+    <div class="db-modal-selection-line hidden" id="valve-db-selection-line"></div>
+    <div class="db-modal-actions">
+      <button type="button" class="btn btn-primary" id="valve-db-confirm" disabled onclick="confirmValveDb()">Confirm Selection</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modal-privacy" onclick="closeModalBg(event,'modal-privacy')">
   <div class="modal-box">
     <button class="modal-close" onclick="closeModal('modal-privacy')">✕</button>
@@ -630,6 +975,8 @@ dP/dt = (P/T)·(dT/dt) + (R·T/V)·(dn/dt) − (P·Q_out)/V</pre>
 const P_MAP  = { Pa: 1, kPa: 1e3, bar: 1e5, psi: 6894.757 };
 const V_MAP  = { m3: 1, L: 1e-3, in3: 1.6387064e-5, ft3: 0.028316846592 };
 const T_TO_K = { C: v => v + 273.15, K: v => v, F: v => (v - 32) * 5/9 + 273.15 };
+const TIME_MAP = { s: 1.0, min: 60.0 };
+const FLOW_MAP = { 'm3/s': 1.0, 'm3/h': 1.0 / 3600.0, 'L/min': 1.0 / 60000.0, 'CFM': 0.000471947443 };
 const FLOW_TO_LPM = 60000; // m³/s → L/min
 
 // ── State ──
@@ -637,6 +984,204 @@ let lastResult  = null;  // SolveResponse from API
 let lastPayload = null;  // SolveRequest sent
 let chartMode   = 'single';
 const MAX_MSGS  = 30;
+
+// Parsed user-uploaded CSVs (null until a file is successfully parsed)
+let parsedTempCSV        = null;  // { headers: [...], rows: [[num, ...]] }
+let parsedCellCSV        = null;
+let parsedValveBeforeCSV = null;
+let parsedValveAfterCSV  = null;
+
+// Database state (populated by fetchDatabases) + currently-selected entries.
+let cellDbEntries  = [];   // [{id, cell_model, ..., venting_curve:{t_s,n_mol}}]
+let valveDbEntries = [];   // [{id, valve_model, ..., pq_curve_before, pq_curve_after}]
+let cellDbSelectedId  = localStorage.getItem('prv_cell_db_id')  || null;
+let valveDbSelectedId = localStorage.getItem('prv_valve_db_id') || null;
+
+// Modal-local "pending" selections (only committed to *SelectedId on Confirm).
+let cellDbPendingIdx  = -1;
+let valveDbPendingIdx = -1;
+
+// ── CSV helpers ──
+function parseCSV(text) {
+  // Minimal CSV parser: handles quoted fields, CRLF, basic escaping. Sufficient
+  // for engineering data exports (numeric, simple headers); does NOT aim for
+  // full RFC 4180 compatibility (no embedded newlines inside quoted fields).
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim().length > 0);
+  if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row.');
+  const splitRow = (line) => {
+    const cells = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQ) {
+        if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+        else if (c === '"') { inQ = false; }
+        else { cur += c; }
+      } else {
+        if (c === ',') { cells.push(cur); cur = ''; }
+        else if (c === '"') { inQ = true; }
+        else { cur += c; }
+      }
+    }
+    cells.push(cur);
+    return cells.map(s => s.trim());
+  };
+  const headers = splitRow(lines[0]);
+  if (headers.length < 2) throw new Error('CSV must have at least two columns.');
+  if (new Set(headers).size !== headers.length) throw new Error('CSV column headers must be unique.');
+  const rows = [];
+  for (let r = 1; r < lines.length; r++) {
+    const parts = splitRow(lines[r]);
+    if (parts.length !== headers.length) {
+      throw new Error(`CSV row ${r+1} has ${parts.length} columns but header has ${headers.length}.`);
+    }
+    const nums = parts.map((p, idx) => {
+      const n = Number(p);
+      if (!Number.isFinite(n)) {
+        throw new Error(`CSV row ${r+1}, column "${headers[idx]}": "${p}" is not a finite number.`);
+      }
+      return n;
+    });
+    rows.push(nums);
+  }
+  if (rows.length < 2) throw new Error('CSV needs at least 2 data rows for interpolation.');
+  return { headers, rows };
+}
+
+function csvColumnByName(parsed, name) {
+  const i = parsed.headers.indexOf(name);
+  if (i < 0) throw new Error(`Column "${name}" not found in CSV.`);
+  return parsed.rows.map(r => r[i]);
+}
+
+function validateAllNonNegative(parsed, label) {
+  for (let r = 0; r < parsed.rows.length; r++) {
+    for (let c = 0; c < parsed.rows[r].length; c++) {
+      if (parsed.rows[r][c] < 0) {
+        throw new Error(`${label}: row ${r+2}, column "${parsed.headers[c]}" is negative.`);
+      }
+    }
+  }
+}
+
+function validateStrictlyIncreasing(values, label) {
+  for (let i = 1; i < values.length; i++) {
+    if (!(values[i] > values[i-1])) {
+      throw new Error(`${label}: values must be strictly monotonically increasing (failed at row ${i+2}).`);
+    }
+  }
+}
+
+function validateNonDecreasing(values, label) {
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] < values[i-1]) {
+      throw new Error(`${label}: values must be monotonically non-decreasing (failed at row ${i+2}).`);
+    }
+  }
+}
+
+function populateColumnSelect(selectId, headers, defaultIdx) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '';
+  headers.forEach((h, i) => {
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = h;
+    if (i === defaultIdx) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+async function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error || new Error('File read failed.'));
+    r.readAsText(file);
+  });
+}
+
+function setStatus(statusId, text, cls) {
+  const el = document.getElementById(statusId);
+  el.textContent = text;
+  el.className = `csv-upload-status${cls ? ' ' + cls : ''}`;
+}
+
+async function handleCSVUpload(fileInputId, statusId, mappingBlockId, colSelectIds, onParsed) {
+  // colSelectIds: array of {id, defaultIdx} for column-name dropdowns to populate.
+  // onParsed(parsed): callback storing the parsed CSV in module state, or null to clear.
+  const input = document.getElementById(fileInputId);
+  const mapping = document.getElementById(mappingBlockId);
+  const file = input.files && input.files[0];
+  if (!file) {
+    setStatus(statusId, '', '');
+    mapping.classList.add('hidden');
+    onParsed(null);
+    return;
+  }
+  try {
+    const text = await readFileAsText(file);
+    const parsed = parseCSV(text);
+    colSelectIds.forEach(({id, defaultIdx}) => populateColumnSelect(id, parsed.headers, defaultIdx));
+    mapping.classList.remove('hidden');
+    setStatus(statusId, `Parsed ${parsed.rows.length} rows × ${parsed.headers.length} cols.`, 'ok');
+    onParsed(parsed);
+  } catch (e) {
+    setStatus(statusId, `Parse error: ${e.message}`, 'err');
+    mapping.classList.add('hidden');
+    onParsed(null);
+  }
+}
+
+// ── Source toggles ──
+function refreshTempModeUI() {
+  const mode = document.getElementById('t-mode').value;
+  const isGiven = mode === 'Given Test Data';
+  document.getElementById('temp-csv-block').classList.toggle('hidden', !isGiven);
+  // Initial Temperature is still meaningful in Constant mode; keep it visible always.
+}
+
+function refreshCellSourceUI() {
+  const src = document.getElementById('gas-source').value;
+  document.getElementById('cell-db-row').classList.toggle('hidden', src !== 'Database');
+  document.getElementById('cell-csv-block').classList.toggle('hidden', src !== 'User Defined');
+}
+
+function refreshValveSourceUI() {
+  const src = document.getElementById('valve-source').value;
+  document.getElementById('valve-db-row').classList.toggle('hidden', src !== 'Database');
+  document.getElementById('valve-csv-block').classList.toggle('hidden', src !== 'User Defined');
+}
+
+function wireSourceToggles() {
+  document.getElementById('t-mode').addEventListener('change', refreshTempModeUI);
+  document.getElementById('gas-source').addEventListener('change', refreshCellSourceUI);
+  document.getElementById('valve-source').addEventListener('change', refreshValveSourceUI);
+
+  document.getElementById('temp-csv-file').addEventListener('change', () => handleCSVUpload(
+    'temp-csv-file', 'temp-csv-status', 'temp-csv-mapping',
+    [{id: 'temp-col-time', defaultIdx: 0}, {id: 'temp-col-value', defaultIdx: 1}],
+    (p) => { parsedTempCSV = p; },
+  ));
+  document.getElementById('cell-csv-file').addEventListener('change', () => handleCSVUpload(
+    'cell-csv-file', 'cell-csv-status', 'cell-csv-mapping',
+    [{id: 'cell-col-time', defaultIdx: 0}, {id: 'cell-col-mole', defaultIdx: 1}],
+    (p) => { parsedCellCSV = p; },
+  ));
+  document.getElementById('valve-before-file').addEventListener('change', () => handleCSVUpload(
+    'valve-before-file', 'valve-before-status', 'valve-before-mapping',
+    [{id: 'valve-before-col-p', defaultIdx: 0}, {id: 'valve-before-col-q', defaultIdx: 1}],
+    (p) => { parsedValveBeforeCSV = p; },
+  ));
+  document.getElementById('valve-after-file').addEventListener('change', () => handleCSVUpload(
+    'valve-after-file', 'valve-after-status', 'valve-after-mapping',
+    [{id: 'valve-after-col-p', defaultIdx: 0}, {id: 'valve-after-col-q', defaultIdx: 1}],
+    (p) => { parsedValveAfterCSV = p; },
+  ));
+
+  refreshTempModeUI();
+  refreshCellSourceUI();
+  refreshValveSourceUI();
+}
 
 // ── Plotly colours (match Streamlit version) ──
 const C = {
@@ -654,8 +1199,11 @@ window.addEventListener('load', () => {
   const key = localStorage.getItem('prv_apikey')   || '';
   document.getElementById('conn-endpoint').value = ep;
   document.getElementById('conn-apikey').value   = key;
-  document.getElementById('conn-endpoint').addEventListener('change', saveConn);
-  document.getElementById('conn-apikey').addEventListener('change', saveConn);
+  const reloadOnChange = () => { saveConn(); fetchDatabases(); };
+  document.getElementById('conn-endpoint').addEventListener('change', reloadOnChange);
+  document.getElementById('conn-apikey').addEventListener('change', reloadOnChange);
+  wireSourceToggles();
+  wireInvalidationOnInputs();
   fetchDatabases();
   renderChart();
 });
@@ -696,23 +1244,224 @@ async function fetchDatabases() {
     if (!vRes.ok) throw new Error(`Valves: ${vRes.status} ${vRes.statusText}`);
     const cells  = await cRes.json();
     const valves = await vRes.json();
-    populateSelect('cell-db-select',  cells.entries,  e => `[${e.id}] ${e.cell_model} (${e.cell_chemistry}, ${e.cell_capacity_ah}Ah)`);
-    populateSelect('valve-db-select', valves.entries, e => `[${e.id}] ${e.valve_model} (${e.valve_type}, ${e.opening_pressure_kpa}kPa)`);
+    cellDbEntries  = cells.entries;
+    valveDbEntries = valves.entries;
+
+    // If a stored selection no longer exists in the DB, drop it silently.
+    if (cellDbSelectedId  && !cellDbEntries.some(e => e.id === cellDbSelectedId))   cellDbSelectedId = null;
+    if (valveDbSelectedId && !valveDbEntries.some(e => e.id === valveDbSelectedId)) valveDbSelectedId = null;
+    // Default to first entry if nothing was previously selected.
+    if (!cellDbSelectedId  && cellDbEntries.length  > 0) cellDbSelectedId  = cellDbEntries[0].id;
+    if (!valveDbSelectedId && valveDbEntries.length > 0) valveDbSelectedId = valveDbEntries[0].id;
+    persistDbSelections();
+    refreshDbSelectionDisplays();
+
     addMsg(`Databases loaded: ${cells.count} cells, ${valves.count} valves.`, 'ok');
   } catch(e) {
     addMsg(`Failed to load databases: ${e.message}`, 'err');
   }
 }
 
-function populateSelect(id, entries, labelFn) {
-  const sel = document.getElementById(id);
-  sel.innerHTML = '';
-  entries.forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e.id;
-    opt.textContent = labelFn(e);
-    sel.appendChild(opt);
+function persistDbSelections() {
+  if (cellDbSelectedId)  localStorage.setItem('prv_cell_db_id',  cellDbSelectedId);
+  else                   localStorage.removeItem('prv_cell_db_id');
+  if (valveDbSelectedId) localStorage.setItem('prv_valve_db_id', valveDbSelectedId);
+  else                   localStorage.removeItem('prv_valve_db_id');
+}
+
+function refreshDbSelectionDisplays() {
+  const cellDisp = document.getElementById('cell-db-display');
+  const valveDisp = document.getElementById('valve-db-display');
+  const cellEnt = cellDbEntries.find(e => e.id === cellDbSelectedId);
+  if (cellEnt) {
+    cellDisp.classList.remove('empty');
+    cellDisp.innerHTML = `Selected venting data — Cell Model: <strong>${escHTML(cellEnt.cell_model)}</strong>`;
+  } else {
+    cellDisp.classList.add('empty');
+    cellDisp.innerHTML = 'No cell selected. Click <strong>Browse database…</strong> to choose.';
+  }
+  const valveEnt = valveDbEntries.find(e => e.id === valveDbSelectedId);
+  if (valveEnt) {
+    valveDisp.classList.remove('empty');
+    valveDisp.innerHTML = `Selected valve — Valve Model: <strong>${escHTML(valveEnt.valve_model)}</strong>`;
+  } else {
+    valveDisp.classList.add('empty');
+    valveDisp.innerHTML = 'No valve selected. Click <strong>Browse database…</strong> to choose.';
+  }
+}
+
+function escHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── DB picker modals ──
+function openCellDbModal() {
+  if (cellDbEntries.length === 0) { addMsg('Cell database not loaded yet.', 'warn'); return; }
+  cellDbPendingIdx = Math.max(0, cellDbEntries.findIndex(e => e.id === cellDbSelectedId));
+  renderCellDbTable();
+  renderCellDbPreview();
+  updateCellDbSelectionLine();
+  document.getElementById('cell-db-confirm').disabled = cellDbPendingIdx < 0;
+  openModal('modal-cell-db');
+}
+
+function renderCellDbTable() {
+  const tbody = document.querySelector('#cell-db-table tbody');
+  tbody.innerHTML = '';
+  cellDbEntries.forEach((e, i) => {
+    const tr = document.createElement('tr');
+    if (i === cellDbPendingIdx) tr.classList.add('selected');
+    const tLast = e.venting_curve?.t_s?.length ? e.venting_curve.t_s.at(-1) : e.venting_duration_s;
+    const nLast = e.venting_curve?.n_mol?.length ? e.venting_curve.n_mol.at(-1) : e.total_gas_mol;
+    const cells = [
+      e.id, e.cell_model, e.manufacturer,
+      Number.isFinite(e.cell_capacity_ah) ? e.cell_capacity_ah.toFixed(1) : '—',
+      e.cell_chemistry, e.cell_shape,
+      Number.isFinite(tLast) ? tLast.toFixed(2) : '—',
+      Number.isFinite(nLast) ? nLast.toFixed(2) : '—',
+      e.data_source || '',
+    ];
+    cells.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+    tr.addEventListener('click', () => {
+      cellDbPendingIdx = i;
+      renderCellDbTable();
+      renderCellDbPreview();
+      updateCellDbSelectionLine();
+      document.getElementById('cell-db-confirm').disabled = false;
+    });
+    tbody.appendChild(tr);
   });
+}
+
+function renderCellDbPreview() {
+  const host = document.getElementById('cell-db-preview');
+  if (cellDbPendingIdx < 0 || cellDbPendingIdx >= cellDbEntries.length) {
+    host.innerHTML = '<div class="preview-empty">Select a table row to preview <strong>gas mole vs. time</strong>.</div>';
+    return;
+  }
+  const entry = cellDbEntries[cellDbPendingIdx];
+  const vc = entry.venting_curve || {};
+  host.innerHTML = '<div></div>';
+  const el = host.firstElementChild;
+  const trace = {
+    x: vc.t_s || [], y: vc.n_mol || [],
+    mode: 'lines+markers', name: 'Gas Mole',
+    line: { color: C.gasMole, width: 2 },
+    marker: { size: 5 },
+    hovertemplate: 't = %{x:.2f} s<br>n = %{y:.3f} mol<extra></extra>',
+  };
+  const layout = baseLayout({
+    title: { text: `[${entry.id}] ${entry.cell_model} — Venting Curve`, x: 0.5, xanchor: 'center', font: { color: '#3d5169', size: 13 } },
+    xaxis: { title: 'Time (s)', ...AXIS_STYLE },
+    yaxis: { title: 'Gas Mole (mol/cell)', ...AXIS_STYLE },
+    showlegend: false,
+    margin: { l: 60, r: 20, t: 40, b: 44 },
+  });
+  Plotly.react(el, [trace], layout, { displayModeBar: false, displaylogo: false, responsive: true });
+}
+
+function updateCellDbSelectionLine() {
+  const line = document.getElementById('cell-db-selection-line');
+  if (cellDbPendingIdx < 0) { line.classList.add('hidden'); return; }
+  const e = cellDbEntries[cellDbPendingIdx];
+  line.classList.remove('hidden');
+  line.innerHTML = `Current selection is <strong>No.${escHTML(e.id)}</strong>, Cell Model = "<strong>${escHTML(e.cell_model)}</strong>"`;
+}
+
+function confirmCellDb() {
+  if (cellDbPendingIdx < 0) return;
+  const newId = cellDbEntries[cellDbPendingIdx].id;
+  if (newId !== cellDbSelectedId) {
+    cellDbSelectedId = newId;
+    persistDbSelections();
+    refreshDbSelectionDisplays();
+    invalidateResultsIfAny('cell selection');
+  }
+  closeModal('modal-cell-db');
+}
+
+function openValveDbModal() {
+  if (valveDbEntries.length === 0) { addMsg('Valve database not loaded yet.', 'warn'); return; }
+  valveDbPendingIdx = Math.max(0, valveDbEntries.findIndex(e => e.id === valveDbSelectedId));
+  renderValveDbTable();
+  renderValveDbPreview();
+  updateValveDbSelectionLine();
+  document.getElementById('valve-db-confirm').disabled = valveDbPendingIdx < 0;
+  openModal('modal-valve-db');
+}
+
+function renderValveDbTable() {
+  const tbody = document.querySelector('#valve-db-table tbody');
+  tbody.innerHTML = '';
+  valveDbEntries.forEach((e, i) => {
+    const tr = document.createElement('tr');
+    if (i === valveDbPendingIdx) tr.classList.add('selected');
+    const cells = [
+      e.id, e.valve_model, e.manufacturer, e.valve_type,
+      Number.isFinite(e.opening_pressure_kpa) ? e.opening_pressure_kpa.toFixed(1) : '—',
+      e.data_source || '',
+    ];
+    cells.forEach(c => { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); });
+    tr.addEventListener('click', () => {
+      valveDbPendingIdx = i;
+      renderValveDbTable();
+      renderValveDbPreview();
+      updateValveDbSelectionLine();
+      document.getElementById('valve-db-confirm').disabled = false;
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function renderValveDbPreview() {
+  const host = document.getElementById('valve-db-preview');
+  if (valveDbPendingIdx < 0 || valveDbPendingIdx >= valveDbEntries.length) {
+    host.innerHTML = '<div class="preview-empty">Select a table row to preview <strong>P-Q curves</strong>.</div>';
+    return;
+  }
+  const entry = valveDbEntries[valveDbPendingIdx];
+  host.innerHTML = '<div></div><div></div>';
+  const [elBefore, elAfter] = host.children;
+  const makeFig = (curve, title) => {
+    const trace = {
+      x: curve?.dp_kpa || [], y: curve?.q_lpm || [],
+      mode: 'lines+markers', name: 'Flow',
+      line: { color: C.flow, width: 2 }, marker: { size: 5 },
+      hovertemplate: 'ΔP = %{x:.2f} kPa<br>Q = %{y:.3f} L/min<extra></extra>',
+    };
+    const layout = baseLayout({
+      title: { text: title, x: 0.5, xanchor: 'center', font: { color: '#3d5169', size: 13 } },
+      xaxis: { title: 'ΔP (kPa)', ...AXIS_STYLE },
+      yaxis: { title: 'Flow Rate (L/min)', ...AXIS_STYLE },
+      showlegend: false,
+      margin: { l: 60, r: 16, t: 40, b: 44 },
+    });
+    return { trace, layout };
+  };
+  const before = makeFig(entry.pq_curve_before, 'Before Opening');
+  const after  = makeFig(entry.pq_curve_after,  'After Opening');
+  Plotly.react(elBefore, [before.trace], before.layout, { displayModeBar: false, displaylogo: false, responsive: true });
+  Plotly.react(elAfter,  [after.trace],  after.layout,  { displayModeBar: false, displaylogo: false, responsive: true });
+}
+
+function updateValveDbSelectionLine() {
+  const line = document.getElementById('valve-db-selection-line');
+  if (valveDbPendingIdx < 0) { line.classList.add('hidden'); return; }
+  const e = valveDbEntries[valveDbPendingIdx];
+  line.classList.remove('hidden');
+  line.innerHTML = `Current selection is <strong>No.${escHTML(e.id)}</strong>, Valve Model = "<strong>${escHTML(e.valve_model)}</strong>"`;
+}
+
+function confirmValveDb() {
+  if (valveDbPendingIdx < 0) return;
+  const newId = valveDbEntries[valveDbPendingIdx].id;
+  if (newId !== valveDbSelectedId) {
+    valveDbSelectedId = newId;
+    persistDbSelections();
+    refreshDbSelectionDisplays();
+    invalidateResultsIfAny('valve selection');
+  }
+  closeModal('modal-valve-db');
 }
 
 // ── Build request payload ──
@@ -735,12 +1484,7 @@ function buildPayload() {
   const tK      = T_TO_K[tUnit](tRaw);
   if (tK <= 0) throw new Error('Temperature must result in a positive Kelvin value.');
 
-  const cellId  = document.getElementById('cell-db-select').value;
-  const valveId = document.getElementById('valve-db-select').value;
-  if (!cellId)  throw new Error('Select a cell from the database.');
-  if (!valveId) throw new Error('Select a valve from the database.');
-
-  return {
+  const payload = {
     v_pack:      vPackSI,
     p_atm:       pAtmSI,
     t_max:       tMax,
@@ -748,11 +1492,151 @@ function buildPayload() {
     t_const:     tK,
     cell_count:  parseInt(document.getElementById('cell-count').value) || 1,
     valve_count: parseInt(document.getElementById('valve-count').value) || 1,
-    cell_db_id:  cellId,
-    valve_db_id: valveId,
     max_points:  1000,
   };
+
+  // ── Temperature mode ──
+  const tMode = document.getElementById('t-mode').value;
+  payload.t_mode = tMode;
+  if (tMode === 'Given Test Data') {
+    if (!parsedTempCSV) throw new Error('Temperature Mode "Given Test Data" requires a CSV upload.');
+    const tCol = document.getElementById('temp-col-time').value;
+    const vCol = document.getElementById('temp-col-value').value;
+    if (tCol === vCol) throw new Error('Temperature CSV: Time and Temperature columns must differ.');
+    validateAllNonNegative(parsedTempCSV, 'Temperature CSV');
+    const tu = document.getElementById('temp-unit-time').value;
+    const vu = document.getElementById('temp-unit-value').value;
+    const tRawArr = csvColumnByName(parsedTempCSV, tCol);
+    const vRawArr = csvColumnByName(parsedTempCSV, vCol);
+    validateStrictlyIncreasing(tRawArr, 'Temperature CSV time column');
+    const t_s   = tRawArr.map(v => v * TIME_MAP[tu]);
+    const temp_k = vRawArr.map(v => T_TO_K[vu](v));
+    for (let i = 0; i < temp_k.length; i++) {
+      if (!(temp_k[i] > 0)) throw new Error(`Temperature CSV row ${i+2}: temperature must convert to a positive Kelvin value.`);
+    }
+    payload.temperature_series = { t_s, temp_k };
+  }
+
+  // ── Cell venting data ──
+  const cellSource = document.getElementById('gas-source').value;
+  if (cellSource === 'Database') {
+    if (!cellDbSelectedId) throw new Error('Select a cell from the database (Browse database…).');
+    payload.cell_db_id = cellDbSelectedId;
+  } else if (cellSource === 'User Defined') {
+    if (!parsedCellCSV) throw new Error('Cell Venting Data: User-Defined mode requires a CSV upload.');
+    const tCol = document.getElementById('cell-col-time').value;
+    const nCol = document.getElementById('cell-col-mole').value;
+    if (tCol === nCol) throw new Error('Cell CSV: Time and Gas Mole columns must differ.');
+    validateAllNonNegative(parsedCellCSV, 'Cell CSV');
+    const tu = document.getElementById('cell-unit-time').value;
+    const tRawArr = csvColumnByName(parsedCellCSV, tCol);
+    const nRawArr = csvColumnByName(parsedCellCSV, nCol);
+    validateStrictlyIncreasing(tRawArr, 'Cell CSV time column');
+    validateNonDecreasing(nRawArr, 'Cell CSV gas mole column');
+    payload.custom_cell = {
+      venting_curve: {
+        t_s:   tRawArr.map(v => v * TIME_MAP[tu]),
+        n_mol: nRawArr.slice(),
+      },
+    };
+  } else {
+    throw new Error(`Unsupported Cell Venting Data source: ${cellSource}`);
+  }
+
+  // ── Valve characteristic ──
+  const valveSource = document.getElementById('valve-source').value;
+  if (valveSource === 'Database') {
+    if (!valveDbSelectedId) throw new Error('Select a valve from the database (Browse database…).');
+    payload.valve_db_id = valveDbSelectedId;
+  } else if (valveSource === 'User Defined') {
+    if (!parsedValveBeforeCSV) throw new Error('Valve: Before-Opening P-Q CSV is required.');
+    if (!parsedValveAfterCSV)  throw new Error('Valve: After-Opening P-Q CSV is required.');
+
+    const buildPQ = (parsed, label, ids) => {
+      const pCol = document.getElementById(ids.colP).value;
+      const qCol = document.getElementById(ids.colQ).value;
+      if (pCol === qCol) throw new Error(`${label}: Pressure and Flow columns must differ.`);
+      validateAllNonNegative(parsed, label);
+      const pu = document.getElementById(ids.unitP).value;
+      const qu = document.getElementById(ids.unitQ).value;
+      const pRawArr = csvColumnByName(parsed, pCol);
+      const qRawArr = csvColumnByName(parsed, qCol);
+      validateStrictlyIncreasing(pRawArr, `${label} pressure column`);
+      validateNonDecreasing(qRawArr, `${label} flow column`);
+      return {
+        dp_pa: pRawArr.map(v => v * P_MAP[pu]),
+        q_m3s: qRawArr.map(v => v * FLOW_MAP[qu]),
+      };
+    };
+
+    const before = buildPQ(parsedValveBeforeCSV, 'Valve Before-Opening CSV', {
+      colP: 'valve-before-col-p', colQ: 'valve-before-col-q',
+      unitP: 'valve-before-unit-p', unitQ: 'valve-before-unit-q',
+    });
+    const after = buildPQ(parsedValveAfterCSV, 'Valve After-Opening CSV', {
+      colP: 'valve-after-col-p', colQ: 'valve-after-col-q',
+      unitP: 'valve-after-unit-p', unitQ: 'valve-after-unit-q',
+    });
+
+    const valveType = document.getElementById('valve-type-select').value;
+    const pOpenRaw  = parseFloat(document.getElementById('valve-p-open').value);
+    const pOpenUnit = document.getElementById('valve-p-open-unit').value;
+    if (!Number.isFinite(pOpenRaw) || pOpenRaw <= 0) throw new Error('Valve Opening Pressure must be positive.');
+    const pOpenPa = pOpenRaw * P_MAP[pOpenUnit];
+
+    payload.custom_valve = {
+      valve_type: valveType,
+      opening_pressure_rel_pa: pOpenPa,
+      pq_curve_before: before,
+      pq_curve_after: after,
+    };
+  } else {
+    throw new Error(`Unsupported Valve Data source: ${valveSource}`);
+  }
+
+  return payload;
 }
+
+// ── Stale-result invalidation ──
+// When any input parameter changes after a successful run, clear the result
+// so the user can't accidentally interpret KPI / charts as belonging to the
+// new inputs. Mirrors invalidate_stale_results_if_needed() in the Streamlit
+// version.
+let staleNoticeShown = false;
+
+function invalidateResultsIfAny(_source) {
+  if (lastResult === null) return;  // nothing to invalidate
+  lastResult  = null;
+  lastPayload = null;
+  document.getElementById('btn-csv').disabled = true;
+  document.getElementById('btn-pdf').disabled = true;
+  // Reset KPI displays
+  setKPI('kpi-peak',         '—', 'neutral');
+  setKPI('kpi-rel-peak',     '—', 'neutral');
+  setKPI('kpi-valve-opened', '—', 'neutral');
+  setKPI('kpi-open-time',    '—', 'neutral');
+  renderChart();  // redraws with no data (empty Plotly canvas)
+  if (!staleNoticeShown) {
+    addMsg('Input parameters have been changed, please run simulation again.', 'warn');
+    staleNoticeShown = true;
+  }
+}
+
+function wireInvalidationOnInputs() {
+  // Event delegation: any change on the left input panel or the sim-time
+  // input invalidates. The DB browse buttons trigger invalidation manually
+  // inside confirmCellDb / confirmValveDb (since they change state without
+  // bubbling a change event).
+  const leftPanel = document.querySelector('.col-left .panel');
+  if (leftPanel) {
+    leftPanel.addEventListener('change', () => invalidateResultsIfAny('input change'));
+  }
+  const tMaxInput = document.getElementById('t-max-input');
+  if (tMaxInput) tMaxInput.addEventListener('change', () => invalidateResultsIfAny('sim time change'));
+}
+
+// Reset the one-shot warning latch after a fresh run.
+function resetStaleNotice() { staleNoticeShown = false; }
 
 // ── Run simulation ──
 async function runSimulation() {
@@ -774,6 +1658,7 @@ async function runSimulation() {
       throw new Error(err.detail || res.statusText);
     }
     lastResult = await res.json();
+    resetStaleNotice();
     updateKPI(lastResult.kpi, payload.p_atm);
     renderChart();
     document.getElementById('btn-csv').disabled = false;
@@ -1056,16 +1941,21 @@ function downloadBlob(content, filename, mime) {
 async function postLocalResults(kpi, payload) {
   // Numeric fields are sent as JSON numbers (not strings) so SKILL.md's
   // PowerShell fallback can use them directly without parsing/casting.
+  const cellSource  = payload.custom_cell  ? 'user-defined' : 'database';
+  const valveSource = payload.custom_valve ? 'user-defined' : 'database';
   const summary = {
     peak_pressure_kpa:          kpi.peak_pressure_kpa,
     relative_peak_pressure_kpa: kpi.relative_peak_pressure_kpa,
     valve_opened:               kpi.valve_opened,
     first_open_time_s:          kpi.first_open_time_s,
-    cell_db_id:                 payload.cell_db_id,
-    valve_db_id:                payload.valve_db_id,
+    cell_db_id:                 payload.cell_db_id  || null,
+    valve_db_id:                payload.valve_db_id || null,
+    cell_source:                cellSource,
+    valve_source:               valveSource,
+    temperature_mode:           payload.t_mode,
     v_pack_L:                   payload.v_pack * 1000,
     p_atm_kpa:                  payload.p_atm / 1000,
-    t_const_k:                  payload.t_const,
+    t_const_k:                  payload.t_mode === 'Assumed Constant' ? payload.t_const : null,
     t_max_s:                    payload.t_max,
     cell_count:                 payload.cell_count,
     valve_count:                payload.valve_count,
