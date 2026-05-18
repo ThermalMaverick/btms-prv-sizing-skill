@@ -24,14 +24,14 @@
     --ctrl-dis-text:   #9aa6b5;
     --ctrl-text:       #1f2a37;
     --ctrl-ph:         #7a8797;
-    --run-bg:          #28a745;
-    --run-bg-hov:      #218838;
+    --run-bg:          #ff4b4b;
+    --run-bg-hov:      #e03030;
     --kpi-ok:          #28a745;
     --kpi-fail:        #ff4b4b;
-    --msg-info-bg:     #e8f4fd; --msg-info-border: #6F86A8; --msg-info-text: #1a3a5c;
-    --msg-ok-bg:       #e9f9ee; --msg-ok-border:   #28a745; --msg-ok-text:   #145c28;
-    --msg-warn-bg:     #fff8e6; --msg-warn-border: #c47d11; --msg-warn-text: #7a4d00;
-    --msg-err-bg:      #fdecea; --msg-err-border:  #b54545; --msg-err-text:  #6b1a1a;
+    --msg-info-bg:     #dbeafe; --msg-info-border: #93c5fd; --msg-info-text: #1e40af;
+    --msg-ok-bg:       #d1fae5; --msg-ok-border:   #6ee7b7; --msg-ok-text:   #065f46;
+    --msg-warn-bg:     #fef3c7; --msg-warn-border: #fcd34d; --msg-warn-text: #92400e;
+    --msg-err-bg:      #fee2e2; --msg-err-border:  #fca5a5; --msg-err-text:  #991b1b;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -105,7 +105,7 @@
   .workspace {
     display: flex;
     flex-direction: row;
-    gap: 8px;
+    gap: 0;
     align-items: stretch;
     flex: 1;
     min-height: 0;
@@ -113,8 +113,28 @@
 
   /* ── Columns ── */
   .col-left   { flex: 0 0 25%; min-width: 220px; display: flex; flex-direction: column; }
-  .col-center { flex: 0 0 55%; min-width: 0;     display: flex; flex-direction: column; gap: 6px; }
+  .col-center { flex: 1 1 auto; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
   .col-right  { flex: 0 0 20%; min-width: 160px; display: flex; flex-direction: column; }
+
+  /* ── Column resizer handle ── */
+  .col-resizer {
+    flex: 0 0 8px;
+    cursor: col-resize;
+    position: relative;
+    background: transparent;
+  }
+  .col-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 3px;
+    width: 2px;
+    background: var(--divider);
+    border-radius: 1px;
+    transition: background .15s;
+  }
+  .col-resizer:hover::after,
+  .col-resizer.dragging::after { background: var(--accent); }
 
   .panel {
     background: #ffffff;
@@ -160,22 +180,23 @@
 
   /* ── Form controls ── */
   .field-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 120px 62px;
+    column-gap: 6px;
     align-items: center;
-    gap: 6px;
     margin-bottom: 6px;
     min-height: 30px;
   }
   .field-label {
-    flex: 1 1 auto;
     font-size: 13px;
     color: var(--ctrl-text);
     display: flex;
     align-items: center;
     min-height: 30px;
   }
-  .field-value { flex: 0 0 80px; }
-  .field-unit  { flex: 0 0 62px; }
+  .field-value { /* grid col 2: 80px fixed */ }
+  .field-unit  { /* grid col 3: 62px fixed */ }
+  .field-span  { grid-column: 2 / span 2; }
 
   input[type="number"], select {
     width: 100%;
@@ -235,15 +256,15 @@
     margin: 2px 0 8px;
     padding: 6px 10px;
     background: var(--msg-ok-bg);
-    border-left: 3px solid var(--msg-ok-border);
+    border: 1px solid var(--msg-ok-border);
     color: var(--msg-ok-text);
-    border-radius: 0 4px 4px 0;
+    border-radius: 8px;
     font-size: 12px;
     line-height: 1.5;
   }
   .db-selection-display.empty {
     background: var(--msg-info-bg);
-    border-left-color: var(--msg-info-border);
+    border-color: var(--msg-info-border);
     color: var(--msg-info-text);
   }
 
@@ -354,10 +375,10 @@
   .btn-run {
     background: var(--run-bg);
     color: #fff;
-    border-color: #1e7e34;
+    border-color: #c53030;
     flex: 1 1 auto;
   }
-  .btn-run:hover:not(:disabled) { background: var(--run-bg-hov); }
+  .btn-run:hover:not(:disabled) { background: var(--run-bg-hov); border-color: #a82828; }
   .btn-run:disabled { background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text); border-color: var(--ctrl-border); cursor: not-allowed; }
   .btn-sec {
     background: var(--ctrl-bg);
@@ -367,6 +388,13 @@
   }
   .btn-sec:hover:not(:disabled) { border-color: var(--accent); background: var(--panel-bg); }
   .btn-sec:disabled { background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text); cursor: not-allowed; }
+  /* Export / Download: green when enabled, matching Streamlit solver_action_ready tokens */
+  #btn-csv:not([disabled]), #btn-pdf:not([disabled]) {
+    background: #28a745; border-color: #1e7e34; color: #ffffff;
+  }
+  #btn-csv:not([disabled]):hover, #btn-pdf:not([disabled]):hover {
+    background: #218838;
+  }
 
   /* ── Messages ── */
   .msg-panel {
@@ -377,11 +405,11 @@
     gap: 3px;
   }
   .msg-item {
-    padding: 3px 8px;
-    border-radius: 4px;
+    padding: 5px 10px;
+    border-radius: 8px;
     font-size: 12px;
-    border-left: 3px solid;
-    line-height: 1.4;
+    border: 1px solid;
+    line-height: 1.45;
   }
   .msg-info { background: var(--msg-info-bg); border-color: var(--msg-info-border); color: var(--msg-info-text); }
   .msg-ok   { background: var(--msg-ok-bg);   border-color: var(--msg-ok-border);   color: var(--msg-ok-text);   }
@@ -431,9 +459,15 @@
     font-size: 11px;
     color: #9aa6b5;
     padding: 4px 14px;
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid var(--shell-border);
   }
+  .statusbar .sb-left   { text-align: left; }
+  .statusbar .sb-center { text-align: center; }
+  .statusbar .sb-right  { text-align: right; }
 
   /* ── Modal ── */
   .modal-bg {
@@ -473,6 +507,7 @@
   @media (max-width: 900px) {
     .workspace { flex-direction: column; }
     .col-left, .col-center, .col-right { flex: none; width: 100%; }
+    .col-resizer { display: none; }
   }
 </style>
 </head>
@@ -563,7 +598,7 @@
 
         <div class="field-row">
           <span class="field-label">Temperature Mode</span>
-          <select id="t-mode" class="full-w" style="flex:1 1 0; margin-left:6px;">
+          <select id="t-mode" class="full-w field-span">
             <option value="Assumed Constant" selected>Assumed Constant</option>
             <option value="Given Test Data">Given Test Data</option>
           </select>
@@ -607,7 +642,7 @@
 
         <div class="field-row">
           <span class="field-label">Data Source</span>
-          <select id="gas-source" class="full-w" style="flex:1 1 0; margin-left:6px;">
+          <select id="gas-source" class="full-w field-span">
             <option value="Database" selected>Database</option>
             <option value="User Defined">User Defined</option>
           </select>
@@ -616,7 +651,7 @@
         <div id="cell-db-row">
           <div class="field-row">
             <span class="field-label">Venting Data Selection</span>
-            <button type="button" class="btn btn-sec db-browse-btn" id="btn-cell-db-browse" onclick="openCellDbModal()" style="flex:1 1 0; margin-left:6px;">Browse database…</button>
+            <button type="button" class="btn btn-sec db-browse-btn field-span" id="btn-cell-db-browse" onclick="openCellDbModal()">Browse database…</button>
           </div>
           <div class="db-selection-display" id="cell-db-display">No cell selected. Click <strong>Browse database…</strong> to choose.</div>
         </div>
@@ -652,7 +687,7 @@
 
         <div class="field-row">
           <span class="field-label">Number of Venting Cells</span>
-          <div class="field-value"><input type="number" id="cell-count" value="1" min="1" max="500" step="1"></div>
+          <div class="field-value field-span"><input type="number" id="cell-count" value="1" min="1" max="500" step="1"></div>
         </div>
 
         <hr class="group-sep">
@@ -662,7 +697,7 @@
 
         <div class="field-row">
           <span class="field-label">Data Source</span>
-          <select id="valve-source" class="full-w" style="flex:1 1 0; margin-left:6px;">
+          <select id="valve-source" class="full-w field-span">
             <option value="Database" selected>Database</option>
             <option value="User Defined">User Defined</option>
           </select>
@@ -671,7 +706,7 @@
         <div id="valve-db-row">
           <div class="field-row">
             <span class="field-label">Valve Selection</span>
-            <button type="button" class="btn btn-sec db-browse-btn" id="btn-valve-db-browse" onclick="openValveDbModal()" style="flex:1 1 0; margin-left:6px;">Browse database…</button>
+            <button type="button" class="btn btn-sec db-browse-btn field-span" id="btn-valve-db-browse" onclick="openValveDbModal()">Browse database…</button>
           </div>
           <div class="db-selection-display" id="valve-db-display">No valve selected. Click <strong>Browse database…</strong> to choose.</div>
         </div>
@@ -748,7 +783,7 @@
 
           <div class="field-row">
             <span class="field-label">Valve Type</span>
-            <select id="valve-type-select" class="full-w" style="flex:1 1 0; margin-left:6px;">
+            <select id="valve-type-select" class="full-w field-span">
               <option value="Spring" selected>Spring</option>
               <option value="Membrane">Membrane</option>
             </select>
@@ -770,11 +805,13 @@
 
         <div class="field-row">
           <span class="field-label">Number of Valves</span>
-          <div class="field-value"><input type="number" id="valve-count" value="1" min="1" max="50" step="1"></div>
+          <div class="field-value field-span"><input type="number" id="valve-count" value="1" min="1" max="50" step="1"></div>
         </div>
 
       </div><!-- /panel -->
     </div><!-- /col-left -->
+
+    <div class="col-resizer" id="resizer-lc"></div>
 
     <!-- ═══ CENTER ═══ -->
     <div class="col-center">
@@ -785,7 +822,7 @@
         <div class="sim-ops-row">
           <span class="field-label">Simulation Time (s)</span>
           <input type="number" id="t-max-input" value="60" min="1" step="1">
-          <button class="btn btn-run" id="btn-run" onclick="runSimulation()">▶ Run Simulation</button>
+          <button class="btn btn-run" id="btn-run" onclick="runSimulation()">Run Simulation</button>
           <button class="btn btn-sec" id="btn-csv" onclick="exportCSV()" disabled>Export Data</button>
           <button class="btn btn-sec" id="btn-pdf" onclick="exportPDF()" disabled>Download Report</button>
         </div>
@@ -818,10 +855,12 @@
 
     </div><!-- /col-center -->
 
+    <div class="col-resizer" id="resizer-cr"></div>
+
     <!-- ═══ RIGHT: KPI ═══ -->
     <div class="col-right">
       <div class="panel">
-        <div class="panel-title">KPI</div>
+        <div class="panel-title">Key Results</div>
 
         <div class="kpi-card">
           <div class="kpi-label">Absolute Peak Pressure</div>
@@ -857,8 +896,10 @@
 
   <!-- Status bar -->
   <div class="statusbar">
-    <span>© 2026 Thermal Maverick · Battery Pack PRV Sizing Tool v1.0</span>
-    <span id="last-run-label"></span>
+    <span class="sb-left">Battery Pack PRV Sizing Tool, Version 1.0.0</span>
+    <span class="sb-center">Copyright © 2026 Thermal Maverick</span>
+    <span class="sb-right">Licensed under PolyForm Noncommercial 1.0.0 · Commercial use requires written permission</span>
+    <span id="last-run-label" style="text-align:right; white-space:nowrap;"></span>
   </div>
 </div><!-- /shell -->
 
@@ -984,6 +1025,9 @@ let lastResult  = null;  // SolveResponse from API
 let lastPayload = null;  // SolveRequest sent
 let chartMode   = 'single';
 const MAX_MSGS  = 30;
+
+// Whether user has manually edited the simulation time (suppresses auto-update)
+let simTimeUserModified = false;
 
 // Parsed user-uploaded CSVs (null until a file is successfully parsed)
 let parsedTempCSV        = null;  // { headers: [...], rows: [[num, ...]] }
@@ -1154,7 +1198,7 @@ function refreshValveSourceUI() {
 
 function wireSourceToggles() {
   document.getElementById('t-mode').addEventListener('change', refreshTempModeUI);
-  document.getElementById('gas-source').addEventListener('change', refreshCellSourceUI);
+  document.getElementById('gas-source').addEventListener('change', () => { refreshCellSourceUI(); autoUpdateSimTime(); });
   document.getElementById('valve-source').addEventListener('change', refreshValveSourceUI);
 
   document.getElementById('temp-csv-file').addEventListener('change', () => handleCSVUpload(
@@ -1165,8 +1209,10 @@ function wireSourceToggles() {
   document.getElementById('cell-csv-file').addEventListener('change', () => handleCSVUpload(
     'cell-csv-file', 'cell-csv-status', 'cell-csv-mapping',
     [{id: 'cell-col-time', defaultIdx: 0}, {id: 'cell-col-mole', defaultIdx: 1}],
-    (p) => { parsedCellCSV = p; },
+    (p) => { parsedCellCSV = p; autoUpdateSimTime(); },
   ));
+  document.getElementById('cell-col-time').addEventListener('change', autoUpdateSimTime);
+  document.getElementById('cell-unit-time').addEventListener('change', autoUpdateSimTime);
   document.getElementById('valve-before-file').addEventListener('change', () => handleCSVUpload(
     'valve-before-file', 'valve-before-status', 'valve-before-mapping',
     [{id: 'valve-before-col-p', defaultIdx: 0}, {id: 'valve-before-col-q', defaultIdx: 1}],
@@ -1183,6 +1229,29 @@ function wireSourceToggles() {
   refreshValveSourceUI();
 }
 
+// ── Auto-update simulation time from cell venting data ──
+function autoUpdateSimTime() {
+  if (simTimeUserModified) return;
+  const src = document.getElementById('gas-source').value;
+  let tMax = 60.0;
+  if (src === 'Database' && cellDbSelectedId) {
+    const ent = cellDbEntries.find(e => e.id === cellDbSelectedId);
+    const ts = ent && ent.venting_curve && ent.venting_curve.t_s;
+    if (ts && ts.length > 0) tMax = ts[ts.length - 1];
+  } else if (src === 'User Defined' && parsedCellCSV) {
+    const tCol = document.getElementById('cell-col-time').value;
+    const tu   = document.getElementById('cell-unit-time').value;
+    if (tCol) {
+      try {
+        const tArr = csvColumnByName(parsedCellCSV, tCol);
+        if (tArr.length > 0) tMax = Math.max(...tArr) * (TIME_MAP[tu] || 1);
+      } catch (_) { /* ignore */ }
+    }
+  }
+  tMax = Math.max(1, Math.round(tMax * 10) / 10);
+  document.getElementById('t-max-input').value = tMax;
+}
+
 // ── Plotly colours (match Streamlit version) ──
 const C = {
   pressure:    '#1f77b4',
@@ -1192,6 +1261,72 @@ const C = {
   flow:        '#d62728',
   valveStatus: '#9467bd',
 };
+
+// ── Resizable columns ──
+function initResizers() {
+  const colLeft   = document.querySelector('.col-left');
+  const colCenter = document.querySelector('.col-center');
+  const colRight  = document.querySelector('.col-right');
+  const workspace = document.querySelector('.workspace');
+  const MIN_LEFT = 220, MIN_CENTER = 200, MIN_RIGHT = 160;
+  const RESIZER_W = 8;
+
+  // Restore saved widths or snapshot current CSS-computed values
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('prv_col_widths') || 'null'); } catch (_) {}
+  let leftW  = saved ? saved[0] : colLeft.getBoundingClientRect().width;
+  let rightW = saved ? saved[1] : colRight.getBoundingClientRect().width;
+
+  function applyWidths() {
+    colLeft.style.flex  = `0 0 ${leftW}px`;
+    colRight.style.flex = `0 0 ${rightW}px`;
+    localStorage.setItem('prv_col_widths', JSON.stringify([leftW, rightW]));
+    const chartEl = document.getElementById('chart-plot');
+    if (chartEl && chartEl._fullLayout) try { Plotly.Plots.resize(chartEl); } catch(_) {}
+  }
+  applyWidths();
+
+  function makeDrag(resizer, isLeft) {
+    resizer.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const startX      = e.clientX;
+      const startLeftW  = leftW;
+      const startRightW = rightW;
+      document.body.style.cursor     = 'col-resize';
+      document.body.style.userSelect = 'none';
+      resizer.classList.add('dragging');
+
+      const onMove = e => {
+        const delta = e.clientX - startX;
+        const ws    = workspace.getBoundingClientRect().width;
+        if (isLeft) {
+          // Left resizer: expand/shrink col-left, col-center absorbs
+          const maxL = ws - rightW - MIN_CENTER - 2 * RESIZER_W;
+          leftW = Math.max(MIN_LEFT, Math.min(maxL, startLeftW + delta));
+        } else {
+          // Right resizer: expand/shrink col-right, col-center absorbs
+          const maxR = ws - leftW - MIN_CENTER - 2 * RESIZER_W;
+          rightW = Math.max(MIN_RIGHT, Math.min(maxR, startRightW - delta));
+        }
+        applyWidths();
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.cursor     = '';
+        document.body.style.userSelect = '';
+        resizer.classList.remove('dragging');
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  makeDrag(document.getElementById('resizer-lc'), true);
+  makeDrag(document.getElementById('resizer-cr'), false);
+}
 
 // ── localStorage persistence ──
 window.addEventListener('load', () => {
@@ -1204,6 +1339,7 @@ window.addEventListener('load', () => {
   document.getElementById('conn-apikey').addEventListener('change', reloadOnChange);
   wireSourceToggles();
   wireInvalidationOnInputs();
+  initResizers();
   fetchDatabases();
   renderChart();
 });
@@ -1255,6 +1391,7 @@ async function fetchDatabases() {
     if (!valveDbSelectedId && valveDbEntries.length > 0) valveDbSelectedId = valveDbEntries[0].id;
     persistDbSelections();
     refreshDbSelectionDisplays();
+    autoUpdateSimTime();
 
     addMsg(`Databases loaded: ${cells.count} cells, ${valves.count} valves.`, 'ok');
   } catch(e) {
@@ -1377,6 +1514,7 @@ function confirmCellDb() {
     refreshDbSelectionDisplays();
     invalidateResultsIfAny('cell selection');
   }
+  autoUpdateSimTime();
   closeModal('modal-cell-db');
 }
 
@@ -1632,7 +1770,10 @@ function wireInvalidationOnInputs() {
     leftPanel.addEventListener('change', () => invalidateResultsIfAny('input change'));
   }
   const tMaxInput = document.getElementById('t-max-input');
-  if (tMaxInput) tMaxInput.addEventListener('change', () => invalidateResultsIfAny('sim time change'));
+  if (tMaxInput) {
+    tMaxInput.addEventListener('change', () => invalidateResultsIfAny('sim time change'));
+    tMaxInput.addEventListener('input', () => { simTimeUserModified = true; });
+  }
 }
 
 // Reset the one-shot warning latch after a fresh run.
@@ -1671,7 +1812,7 @@ async function runSimulation() {
     addMsg(`Error: ${e.message}`, 'err');
   } finally {
     runBtn.disabled  = false;
-    runBtn.textContent = '▶ Run Simulation';
+    runBtn.textContent = 'Run Simulation';
   }
 }
 
@@ -1714,17 +1855,20 @@ function renderChart() {
   else if (chartMode === 'vstack') renderVertStack(el);
 }
 
+const PAGE_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 const AXIS_STYLE = {
   showgrid: true, gridcolor: '#dbe4f0', gridwidth: 1,
   zeroline: false, showline: true, linewidth: 1, linecolor: '#cfd8e3',
-  ticks: 'outside', tickfont: { color: '#6b7785' }, title_font: { color: '#1a2332' },
+  ticks: 'outside',
+  tickfont:  { color: '#6b7785', family: PAGE_FONT, size: 11 },
+  titlefont: { color: '#1a2332', family: PAGE_FONT, size: 12 },
 };
 const PLOTLY_CFG = { displaylogo: false, responsive: true };
 
 function baseLayout(overrides={}) {
   return {
     paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
-    font: { family: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', size: 12 },
+    font: { family: PAGE_FONT, size: 12 },
     margin: { l: 72, r: 72, t: 56, b: 60 },
     hovermode: 'x unified',
     ...overrides,
@@ -1792,6 +1936,13 @@ function renderFourGrid(el) {
   const hasD = !!d;
   const pAtmKPa = lastPayload ? lastPayload.p_atm / 1000 : null;
 
+  // Explicit subplot domains — full control over gaps
+  // Horizontal: 14% gap between columns; Vertical: 18% gap between rows
+  const xL = [0.00, 0.43];  // left column
+  const xR = [0.57, 1.00];  // right column
+  const yB = [0.00, 0.41];  // bottom row
+  const yT = [0.59, 1.00];  // top row
+
   const traces = [];
   if (hasD) {
     const flowLpm = d.flow_rate_m3s.map(v => v * FLOW_TO_LPM);
@@ -1800,34 +1951,46 @@ function renderFourGrid(el) {
         mode: 'lines', name: 'Ambient', xaxis: 'x', yaxis: 'y',
         line: { color: C.ambient, dash: 'dash', width: 1.5 }, showlegend: false });
     }
-    traces.push({ x: d.time_s, y: d.pressure_kpa,   mode: 'lines', name: 'Pressure',    xaxis: 'x',  yaxis: 'y',  line: { color: C.pressure,    width: 2 } });
-    traces.push({ x: d.time_s, y: d.temperature_c,  mode: 'lines', name: 'Temperature', xaxis: 'x2', yaxis: 'y2', line: { color: C.temperature, width: 2 } });
-    traces.push({ x: d.time_s, y: d.molar_amount_mol,mode:'lines', name: 'Gas Mole',    xaxis: 'x3', yaxis: 'y3', line: { color: C.gasMole,     width: 2 } });
-    traces.push({ x: d.time_s, y: flowLpm,           mode: 'lines', name: 'Flow Rate',   xaxis: 'x4', yaxis: 'y4', line: { color: C.flow,        width: 2 } });
-    traces.push({ x: d.time_s, y: d.valve_status,    mode: 'lines', name: 'Valve Status',xaxis: 'x4', yaxis: 'y5',
+    traces.push({ x: d.time_s, y: d.pressure_kpa,    mode: 'lines', name: 'Pressure',    xaxis: 'x',  yaxis: 'y',  line: { color: C.pressure,    width: 2 } });
+    traces.push({ x: d.time_s, y: d.temperature_c,   mode: 'lines', name: 'Temperature', xaxis: 'x2', yaxis: 'y2', line: { color: C.temperature, width: 2 } });
+    traces.push({ x: d.time_s, y: d.molar_amount_mol, mode:'lines', name: 'Gas Mole',    xaxis: 'x3', yaxis: 'y3', line: { color: C.gasMole,     width: 2 } });
+    traces.push({ x: d.time_s, y: flowLpm,            mode: 'lines', name: 'Flow Rate',  xaxis: 'x4', yaxis: 'y4', line: { color: C.flow,        width: 2 } });
+    traces.push({ x: d.time_s, y: d.valve_status,     mode: 'lines', name: 'Valve Status', xaxis: 'x4', yaxis: 'y5',
       line: { color: C.valveStatus, width: 2, dash: 'dot' } });
   }
 
-  const grid = { rows: 2, columns: 2, pattern: 'independent' };
+  // Annotation positions derived from domain boundaries — always centred above each subplot
+  const annFont = { color: '#3d5169', family: PAGE_FONT, size: 12 };
+  const ann = (text, xd, yd) => ({
+    text, xref: 'paper', yref: 'paper', showarrow: false,
+    xanchor: 'center', yanchor: 'bottom',
+    x: (xd[0] + xd[1]) / 2,
+    y: yd[1] + 0.02,
+    font: annFont,
+  });
   const annotations = [
-    { text: 'Absolute Pressure in Pack',                      xref:'paper', yref:'paper', x:0.225, y:1.04, showarrow:false, font:{color:'#3d5169',size:12} },
-    { text: 'Temperature in Pack',                            xref:'paper', yref:'paper', x:0.775, y:1.04, showarrow:false, font:{color:'#3d5169',size:12} },
-    { text: 'Total Venting Gas Mole',                         xref:'paper', yref:'paper', x:0.225, y:0.46, showarrow:false, font:{color:'#3d5169',size:12} },
-    { text: 'Total Flow Rate & PRV Status (0=Close, 1=Open)', xref:'paper', yref:'paper', x:0.775, y:0.46, showarrow:false, font:{color:'#3d5169',size:12} },
+    ann('Absolute Pressure in Pack',                      xL, yT),
+    ann('Temperature in Pack',                            xR, yT),
+    ann('Total Venting Gas Mole',                         xL, yB),
+    ann('Total Flow Rate & PRV Status (0=Close, 1=Open)', xR, yB),
   ];
-  const axBase = { ...AXIS_STYLE, title: { text: 'Time (s)' } };
+
+  const xAx = (dom, yref) => ({ domain: dom, anchor: yref, title: 'Time (s)', ...AXIS_STYLE });
+  const yAx = (dom, xref, ttl) => ({ domain: dom, anchor: xref, title: ttl, ...AXIS_STYLE });
   const layout = {
-    grid, annotations,
+    annotations,
     paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
-    height: 640, margin: { l: 68, r: 68, t: 72, b: 64 },
+    font: { family: PAGE_FONT, size: 12 },
+    height: 640, margin: { l: 68, r: 68, t: 60, b: 56 },
     showlegend: false,
-    hovermode: 'x unified', hoversubplots: 'axis',
-    xaxis:  { ...axBase }, xaxis2: { ...axBase }, xaxis3: { ...axBase }, xaxis4: { ...axBase },
-    yaxis:  { title: 'Absolute Pressure (kPa)',  ...AXIS_STYLE },
-    yaxis2: { title: 'Temperature (°C)',         ...AXIS_STYLE },
-    yaxis3: { title: 'Gas Mole (mol)',           ...AXIS_STYLE },
-    yaxis4: { title: 'Flow Rate (L/min)',        ...AXIS_STYLE },
-    yaxis5: { title: 'Valve Status (0/1)', overlaying: 'y4', side: 'right', range: [-0.1, 1.1], ...AXIS_STYLE },
+    hovermode: 'x unified',
+    xaxis:  xAx(xL, 'y'),   xaxis2: xAx(xR, 'y2'),
+    xaxis3: xAx(xL, 'y3'),  xaxis4: xAx(xR, 'y4'),
+    yaxis:  yAx(yT, 'x',  'Absolute Pressure (kPa)'),
+    yaxis2: yAx(yT, 'x2', 'Temperature (°C)'),
+    yaxis3: yAx(yB, 'x3', 'Gas Mole (mol)'),
+    yaxis4: yAx(yB, 'x4', 'Flow Rate (L/min)'),
+    yaxis5: { anchor: 'x4', overlaying: 'y4', side: 'right', range: [-0.1, 1.1], ...AXIS_STYLE },
   };
   Plotly.react(el, traces, layout, PLOTLY_CFG);
 }
@@ -1967,7 +2130,8 @@ async function postLocalResults(kpi, payload) {
   const relayToken = tokenMeta ? tokenMeta.content : '';
   // If the placeholder was not replaced (e.g. the HTML is opened directly
   // as a file:// resource for debugging), skip the relay POST entirely.
-  if (!relayToken || relayToken === '__RELAY_TOKEN__') return;
+  const _UNSET = '__RELAY' + '_TOKEN__';  // split so relay's replace() doesn't match here
+  if (!relayToken || relayToken === _UNSET) return;
   try {
     await fetch('/local-results', {
       method: 'POST',
