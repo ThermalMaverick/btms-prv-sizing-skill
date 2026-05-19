@@ -7,31 +7,52 @@
 <title>Battery Pack PRV Sizing Tool</title>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
-  /* ── Tokens ── */
+  /* ── Tokens (Obsidian-purple palette) ── */
   :root {
-    --shell-bg:        #f2f5f9;
-    --shell-border:    #d8e1eb;
-    --panel-border:    #dfe5ed;
-    --panel-bg:        #f6f8fb;
-    --divider:         #d8e1eb;
-    --accent:          #6F86A8;
-    --accent-deep:     #3d5169;
-    --ctrl-bg:         #ffffff;
-    --ctrl-border:     #b8c4d2;
-    --ctrl-border-hov: #98a8bb;
-    --ctrl-focus:      #6F86A8;
-    --ctrl-dis-bg:     #eef2f7;
-    --ctrl-dis-text:   #9aa6b5;
-    --ctrl-text:       #1f2a37;
-    --ctrl-ph:         #7a8797;
-    --run-bg:          #ff4b4b;
-    --run-bg-hov:      #e03030;
-    --kpi-ok:          #28a745;
-    --kpi-fail:        #ff4b4b;
-    --msg-info-bg:     #dbeafe; --msg-info-border: #93c5fd; --msg-info-text: #1e40af;
-    --msg-ok-bg:       #d1fae5; --msg-ok-border:   #6ee7b7; --msg-ok-text:   #065f46;
-    --msg-warn-bg:     #fef3c7; --msg-warn-border: #fcd34d; --msg-warn-text: #92400e;
-    --msg-err-bg:      #fee2e2; --msg-err-border:  #fca5a5; --msg-err-text:  #991b1b;
+    /* Neutral shell (cool, slight purple cast) */
+    --shell-bg:        #F5F4FB;
+    --shell-border:    #E2DFEE;
+    --panel-border:    #E5E2F0;
+    --panel-bg:        #F9F7FE;
+    --divider:         #E2DFEE;
+
+    /* Brand purple (4-step ramp, all on H≈255°) */
+    --accent-deep:     #3D2D75;   /* titles, brand wordmark */
+    --accent:          #7C5CFF;   /* primary actions, focus ring, strong accents */
+    --accent-hov:      #6A48F0;
+    --accent-press:    #5938DA;
+    --accent-soft:     #EDE9FE;   /* hover bg, selected row */
+    --accent-soft-2:   #DDD6FE;
+
+    /* Controls */
+    --ctrl-bg:         #FFFFFF;
+    --ctrl-border:     #C8C3DC;
+    --ctrl-border-hov: #A89FC7;
+    --ctrl-focus:      #7C5CFF;
+    --ctrl-dis-bg:     #F0EEF7;
+    --ctrl-dis-text:   #9892B0;
+    --ctrl-text:       #1E1B2E;   /* near-black with purple cast */
+    --ctrl-ph:         #8A8499;
+    --text-muted:      #6B6580;   /* secondary text — WCAG AA on white */
+
+    /* Primary action button (Run / Confirm) */
+    --run-bg:          #7C5CFF;
+    --run-bg-hov:      #6A48F0;
+    --run-border:      #5938DA;
+
+    /* Radius scale — 3 levels */
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 10px;
+
+    /* Semantic colours (red/amber/green retained, tuned for purple harmony) */
+    --kpi-ok:          #16A34A;
+    --kpi-fail:        #DC2626;
+
+    --msg-info-bg:     #F0ECFE;  --msg-info-border: #7C5CFF;  --msg-info-text: #4A35A8;
+    --msg-ok-bg:       #ECFDF5;  --msg-ok-border:   #16A34A;  --msg-ok-text:   #065F46;
+    --msg-warn-bg:     #FFFBEB;  --msg-warn-border: #D97706;  --msg-warn-text: #92400E;
+    --msg-err-bg:      #FEF2F2;  --msg-err-border:  #DC2626;  --msg-err-text:  #991B1B;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -43,6 +64,8 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    font-feature-settings: "tnum" 1, "ss01" 1;
+    font-variant-numeric: tabular-nums;
   }
 
   /* ── Top nav bar ── */
@@ -56,23 +79,28 @@
     flex-wrap: wrap;
   }
   .top-nav .brand {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 16px;
+    font-weight: 700;
     color: var(--accent-deep);
     margin-right: 12px;
     white-space: nowrap;
+    letter-spacing: -0.01em;
   }
   .nav-btn {
-    padding: 4px 12px;
+    padding: 5px 12px;
     border: 1px solid var(--ctrl-border);
-    border-radius: 6px;
+    border-radius: var(--r-md);
     background: var(--ctrl-bg);
     color: var(--ctrl-text);
     cursor: pointer;
     font-size: 13px;
-    transition: border-color .15s, background .15s;
+    transition: border-color .15s, background .15s, box-shadow .15s;
   }
-  .nav-btn:hover { border-color: var(--accent); background: var(--panel-bg); }
+  .nav-btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+  }
   .nav-spacer { flex: 1; }
   .conn-bar {
     display: flex;
@@ -80,17 +108,23 @@
     gap: 6px;
     flex-wrap: wrap;
   }
-  .conn-bar label { font-size: 12px; color: #6b7785; white-space: nowrap; }
+  .conn-bar label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
   .conn-bar input {
     padding: 4px 8px;
     border: 1px solid var(--ctrl-border);
-    border-radius: 5px;
+    border-radius: var(--r-sm);
     font-size: 12px;
     background: var(--ctrl-bg);
     color: var(--ctrl-text);
     outline: none;
+    transition: border-color .15s, box-shadow .15s;
   }
   .conn-bar input:focus { border-color: var(--ctrl-focus); }
+  .conn-bar input:focus-visible {
+    outline: none;
+    border-color: var(--ctrl-focus);
+    box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.22);
+  }
   #conn-endpoint { width: 200px; }
   #conn-apikey   { width: 160px; }
 
@@ -139,9 +173,11 @@
   .panel {
     background: #ffffff;
     border: 1px solid var(--panel-border);
-    border-radius: 8px;
+    border-radius: var(--r-lg);
     padding: 10px 12px;
     overflow-y: auto;
+    box-shadow: 0 1px 2px rgba(61, 45, 117, 0.05),
+                0 1px 1px rgba(61, 45, 117, 0.04);
   }
   .col-left   .panel { flex: 1; }
   .col-right  .panel { flex: 1; }
@@ -158,16 +194,17 @@
   .group-title {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin: 10px 0 6px;
+    gap: 10px;
+    margin: 12px 0 6px;
     font-size: 13px;
     font-weight: 600;
+    color: var(--accent-deep);
   }
   .group-title::before {
     content: "";
     display: inline-block;
     width: 3px;
-    height: 16px;
+    height: 18px;
     background: var(--accent);
     border-radius: 2px;
     flex-shrink: 0;
@@ -185,14 +222,14 @@
     column-gap: 6px;
     align-items: center;
     margin-bottom: 6px;
-    min-height: 30px;
+    min-height: 32px;
   }
   .field-label {
     font-size: 13px;
     color: var(--ctrl-text);
     display: flex;
     align-items: center;
-    min-height: 30px;
+    min-height: 32px;
   }
   .field-value { /* grid col 2: 80px fixed */ }
   .field-unit  { /* grid col 3: 62px fixed */ }
@@ -200,17 +237,36 @@
 
   input[type="number"], select {
     width: 100%;
-    padding: 4px 7px;
+    padding: 6px 8px;
     border: 1px solid var(--ctrl-border);
-    border-radius: 5px;
+    border-radius: var(--r-sm);
     background: var(--ctrl-bg);
     color: var(--ctrl-text);
     font-size: 13px;
     outline: none;
-    height: 30px;
+    height: 32px;
+    transition: border-color .15s, box-shadow .15s;
   }
-  input[type="number"]:focus, select:focus { border-color: var(--ctrl-focus); }
+  input[type="number"]:hover, select:hover { border-color: var(--ctrl-border-hov); }
   select.full-w { flex: 1 1 0; }
+
+  /* ── Focus-visible ring (keyboard a11y) ── */
+  input[type="number"]:focus-visible,
+  input[type="text"]:focus-visible,
+  input[type="url"]:focus-visible,
+  input[type="password"]:focus-visible,
+  input[type="file"]:focus-visible,
+  select:focus-visible,
+  .btn:focus-visible,
+  .nav-btn:focus-visible,
+  .tab-btn:focus-visible,
+  .modal-close:focus-visible {
+    outline: none;
+    border-color: var(--ctrl-focus);
+    box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.22);
+  }
+  /* Fallback for non-supporting browsers */
+  input[type="number"]:focus, select:focus { border-color: var(--ctrl-focus); }
 
   /* ── CSV upload row ── */
   .csv-upload {
@@ -225,9 +281,9 @@
     color: var(--ctrl-text);
     background: var(--ctrl-bg);
     border: 1px solid var(--ctrl-border);
-    border-radius: 5px;
-    padding: 3px 6px;
-    height: 30px;
+    border-radius: var(--r-sm);
+    padding: 4px 8px;
+    height: 32px;
     min-width: 0;
   }
   .csv-upload input[type="file"]::file-selector-button {
@@ -242,31 +298,33 @@
   }
   .csv-upload-status {
     font-size: 11px;
-    color: #6b7785;
+    color: var(--text-muted);
     margin: -3px 0 4px;
     min-height: 14px;
   }
   .csv-upload-status.err { color: var(--msg-err-text); }
   .csv-upload-status.ok  { color: var(--msg-ok-text); }
   .hidden { display: none !important; }
-  .csv-map-block { padding: 4px 8px; border-left: 2px solid var(--accent); background: rgba(111,134,168,0.04); border-radius: 0 4px 4px 0; margin-bottom: 6px; }
+  .csv-map-block { padding: 4px 8px; border-left: 2px solid var(--accent); background: rgba(124, 92, 255, 0.04); border-radius: 0 var(--r-sm) var(--r-sm) 0; margin-bottom: 6px; }
 
-  /* ── Database selection display ── */
+  /* ── Database selection display (matches .csv-map-block purple frame) ── */
   .db-selection-display {
     margin: 2px 0 8px;
     padding: 6px 10px;
-    background: var(--msg-ok-bg);
-    border: 1px solid var(--msg-ok-border);
-    color: var(--msg-ok-text);
-    border-radius: 8px;
+    background: rgba(124, 92, 255, 0.06);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--r-md) var(--r-md) 0;
+    color: var(--accent-deep);
     font-size: 12px;
     line-height: 1.5;
   }
+  .db-selection-display strong { color: var(--accent-deep); font-weight: 600; }
   .db-selection-display.empty {
-    background: var(--msg-info-bg);
-    border-color: var(--msg-info-border);
-    color: var(--msg-info-text);
+    background: rgba(124, 92, 255, 0.03);
+    border-left-color: var(--ctrl-border-hov);
+    color: var(--text-muted);
   }
+  .db-selection-display.empty strong { color: var(--accent-deep); }
 
   /* ── Wide database modal ── */
   .modal-bg.db-modal .modal-box {
@@ -280,7 +338,7 @@
     max-height: 280px;
     overflow: auto;
     border: 1px solid var(--divider);
-    border-radius: 6px;
+    border-radius: var(--r-md);
     margin-bottom: 10px;
   }
   table.db-table {
@@ -301,20 +359,20 @@
   }
   table.db-table tbody td {
     padding: 5px 10px;
-    border-bottom: 1px solid #eef2f7;
+    border-bottom: 1px solid var(--divider);
     white-space: nowrap;
   }
   table.db-table tbody tr { cursor: pointer; }
-  table.db-table tbody tr:hover { background: rgba(111,134,168,0.06); }
-  table.db-table tbody tr.selected { background: rgba(40, 167, 69, 0.10); }
-  table.db-table tbody tr.selected td { font-weight: 500; }
+  table.db-table tbody tr:hover { background: rgba(124, 92, 255, 0.06); }
+  table.db-table tbody tr.selected { background: var(--accent-soft); }
+  table.db-table tbody tr.selected td { font-weight: 500; color: var(--accent-deep); }
 
   .db-modal-warning {
     padding: 6px 10px;
     background: var(--msg-warn-bg);
     border-left: 3px solid var(--msg-warn-border);
     color: var(--msg-warn-text);
-    border-radius: 0 4px 4px 0;
+    border-radius: 0 var(--r-md) var(--r-md) 0;
     font-size: 12px;
     margin-bottom: 10px;
   }
@@ -323,28 +381,36 @@
     background: var(--msg-info-bg);
     border-left: 3px solid var(--msg-info-border);
     color: var(--msg-info-text);
-    border-radius: 0 4px 4px 0;
+    border-radius: 0 var(--r-md) var(--r-md) 0;
     font-size: 12px;
     margin: 10px 0;
   }
   .db-modal-preview {
     border: 1px solid var(--divider);
-    border-radius: 6px;
+    border-radius: var(--r-md);
     padding: 6px;
     min-height: 220px;
-    background: #fafbfd;
+    background: var(--panel-bg);
   }
   .db-modal-preview.dual { display: flex; gap: 8px; }
   .db-modal-preview.dual > div { flex: 1; min-width: 0; height: 220px; }
   .db-modal-preview.single > div { height: 220px; }
   .db-modal-preview .preview-empty {
     display: flex; align-items: center; justify-content: center;
-    height: 100%; color: #6b7785; font-size: 12px;
+    height: 100%; color: var(--text-muted); font-size: 12px;
   }
   .db-modal-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
   .db-modal-actions .btn-primary {
-    background: var(--run-bg); color: #fff; border-color: #1e7e34;
-    padding: 6px 18px; font-size: 13px;
+    background: var(--run-bg);
+    color: #fff;
+    border-color: var(--run-border);
+    padding: 6px 20px;
+    font-size: 13px;
+  }
+  .db-modal-actions .btn-primary:hover:not(:disabled) {
+    background: var(--run-bg-hov);
+    border-color: var(--accent-press);
+    box-shadow: 0 2px 8px rgba(124, 92, 255, 0.28);
   }
   .db-modal-actions .btn-primary:disabled {
     background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text);
@@ -362,23 +428,31 @@
   #t-max-input { width: 70px; }
 
   .btn {
-    padding: 5px 12px;
-    border-radius: 6px;
+    padding: 6px 14px;
+    border-radius: var(--r-md);
     border: 1px solid transparent;
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
-    transition: background .15s, border-color .15s;
-    height: 30px;
+    transition: background .15s, border-color .15s, box-shadow .15s, transform .08s;
+    height: 32px;
   }
   .btn-run {
     background: var(--run-bg);
     color: #fff;
-    border-color: #c53030;
+    border-color: var(--run-border);
     flex: 1 1 auto;
   }
-  .btn-run:hover:not(:disabled) { background: var(--run-bg-hov); border-color: #a82828; }
+  .btn-run:hover:not(:disabled) {
+    background: var(--run-bg-hov);
+    border-color: var(--accent-press);
+    box-shadow: 0 2px 8px rgba(124, 92, 255, 0.28);
+  }
+  .btn-run:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: 0 1px 3px rgba(124, 92, 255, 0.24);
+  }
   .btn-run:disabled { background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text); border-color: var(--ctrl-border); cursor: not-allowed; }
   .btn-sec {
     background: var(--ctrl-bg);
@@ -386,14 +460,23 @@
     color: var(--ctrl-text);
     flex: 1 1 auto;
   }
-  .btn-sec:hover:not(:disabled) { border-color: var(--accent); background: var(--panel-bg); }
+  .btn-sec:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: 0 1px 3px rgba(61, 45, 117, 0.08);
+  }
   .btn-sec:disabled { background: var(--ctrl-dis-bg); color: var(--ctrl-dis-text); cursor: not-allowed; }
-  /* Export / Download: green when enabled, matching Streamlit solver_action_ready tokens */
+  /* Export / Download: purple-outline once enabled (filled-vs-outlined hierarchy with Run) */
   #btn-csv:not([disabled]), #btn-pdf:not([disabled]) {
-    background: #28a745; border-color: #1e7e34; color: #ffffff;
+    background: #ffffff;
+    border-color: var(--accent-deep);
+    color: var(--accent-deep);
+    font-weight: 500;
   }
   #btn-csv:not([disabled]):hover, #btn-pdf:not([disabled]):hover {
-    background: #218838;
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    box-shadow: 0 1px 3px rgba(61, 45, 117, 0.10);
   }
 
   /* ── Messages ── */
@@ -405,16 +488,17 @@
     gap: 3px;
   }
   .msg-item {
-    padding: 5px 10px;
-    border-radius: 8px;
+    padding: 6px 12px;
+    border-radius: 0 var(--r-md) var(--r-md) 0;
     font-size: 12px;
-    border: 1px solid;
+    border: none;
+    border-left: 3px solid;
     line-height: 1.45;
   }
-  .msg-info { background: var(--msg-info-bg); border-color: var(--msg-info-border); color: var(--msg-info-text); }
-  .msg-ok   { background: var(--msg-ok-bg);   border-color: var(--msg-ok-border);   color: var(--msg-ok-text);   }
-  .msg-warn { background: var(--msg-warn-bg);  border-color: var(--msg-warn-border);  color: var(--msg-warn-text);  }
-  .msg-err  { background: var(--msg-err-bg);   border-color: var(--msg-err-border);   color: var(--msg-err-text);   }
+  .msg-info { background: var(--msg-info-bg); border-left-color: var(--msg-info-border); color: var(--msg-info-text); }
+  .msg-ok   { background: var(--msg-ok-bg);   border-left-color: var(--msg-ok-border);   color: var(--msg-ok-text);   }
+  .msg-warn { background: var(--msg-warn-bg); border-left-color: var(--msg-warn-border); color: var(--msg-warn-text); }
+  .msg-err  { background: var(--msg-err-bg);  border-left-color: var(--msg-err-border);  color: var(--msg-err-text);  }
 
   /* ── Chart mode tabs ── */
   .chart-mode-tabs {
@@ -425,19 +509,25 @@
     align-items: center;
   }
   .tab-btn {
-    padding: 3px 10px;
-    border: 1px solid var(--ctrl-border);
-    border-radius: 5px;
-    background: var(--ctrl-bg);
+    padding: 4px 12px;
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+    background: transparent;
     font-size: 12px;
     cursor: pointer;
-    color: var(--ctrl-text);
+    color: var(--text-muted);
     transition: background .15s, border-color .15s, color .15s;
   }
+  .tab-btn:hover:not(.active) {
+    color: var(--accent-deep);
+    background: var(--accent-soft);
+  }
   .tab-btn.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    background: transparent;
+    color: var(--accent-deep);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
   }
   .single-type-select { margin-left: 8px; font-size: 12px; height: 26px; padding: 2px 6px; width: auto; }
 
@@ -447,8 +537,21 @@
 
   /* ── KPI cards ── */
   .kpi-card { margin: 8px 0; }
-  .kpi-label { font-size: 12px; color: #6b7785; margin-bottom: 2px; }
-  .kpi-value { font-size: 26px; font-weight: 400; line-height: 1.2; letter-spacing: -.01em; }
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 500;
+  }
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -.015em;
+    font-variant-numeric: tabular-nums;
+  }
   .kpi-ok   { color: var(--kpi-ok); }
   .kpi-fail { color: var(--kpi-fail); }
   .kpi-neutral { color: var(--ctrl-text); }
@@ -457,7 +560,7 @@
   /* ── Status bar ── */
   .statusbar {
     font-size: 11px;
-    color: #9aa6b5;
+    color: var(--text-muted);
     padding: 4px 14px;
     display: grid;
     grid-template-columns: 1fr auto 1fr auto;
@@ -473,7 +576,9 @@
   .modal-bg {
     display: none;
     position: fixed; inset: 0;
-    background: rgba(0,0,0,.35);
+    background: rgba(30, 27, 46, 0.55);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
     z-index: 1000;
     align-items: center;
     justify-content: center;
@@ -481,27 +586,38 @@
   .modal-bg.open { display: flex; }
   .modal-box {
     background: #fff;
-    border-radius: 10px;
+    border-radius: var(--r-lg);
     padding: 24px 28px;
     max-width: 560px;
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
-    box-shadow: 0 12px 40px rgba(0,0,0,.18);
+    box-shadow: 0 16px 48px rgba(30, 27, 46, 0.30),
+                0 4px 12px rgba(61, 45, 117, 0.10);
   }
   .modal-title { font-size: 17px; font-weight: 600; color: var(--accent-deep); margin-bottom: 12px; }
-  .modal-body  { font-size: 13px; line-height: 1.7; color: #2a3a4a; }
+  .modal-body  { font-size: 13px; line-height: 1.7; color: #2A2640; }
   .modal-close {
     float: right;
     cursor: pointer;
-    font-size: 20px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
     line-height: 1;
-    color: #9aa6b5;
+    color: var(--text-muted);
     border: none;
     background: none;
     margin-left: 8px;
+    transition: background .15s, color .15s;
   }
-  .modal-close:hover { color: var(--accent-deep); }
+  .modal-close:hover {
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+  }
 
   /* ── Responsive ── */
   @media (max-width: 900px) {
@@ -886,7 +1002,7 @@
         </div>
         <hr class="kpi-sep">
 
-        <div style="font-size:11px; color:#9aa6b5; line-height:1.5; margin-top:8px;">
+        <div style="font-size:11px; color:var(--text-muted); line-height:1.5; margin-top:8px;">
           <strong>Disclaimer:</strong> Simulation results may differ from actual measurements and are for reference only. All input data is not stored.
         </div>
       </div>
@@ -931,7 +1047,7 @@
     <div class="modal-title">Theory & Model</div>
     <div class="modal-body">
       <p><strong>Governing Equation</strong> (lumped parameter, ideal gas):</p>
-      <pre style="background:#f2f5f9; padding:10px; border-radius:6px; font-size:12px; margin:10px 0; overflow-x:auto;">
+      <pre style="background:var(--shell-bg); padding:10px; border-radius:var(--r-md); font-size:12px; margin:10px 0; overflow-x:auto; color:var(--accent-deep);">
 dP/dt = (P/T)·(dT/dt) + (R·T/V)·(dn/dt) − (P·Q_out)/V</pre>
       <p>where P = absolute pressure (Pa), T = temperature (K), V = pack void volume (m³), n = total gas moles (mol), Q_out = volumetric flow through valve (m³/s), R = 8.314 J/(mol·K).</p>
       <br>
@@ -1488,7 +1604,7 @@ function renderCellDbPreview() {
     hovertemplate: 't = %{x:.2f} s<br>n = %{y:.3f} mol<extra></extra>',
   };
   const layout = baseLayout({
-    title: { text: `[${entry.id}] ${entry.cell_model} — Venting Curve`, x: 0.5, xanchor: 'center', font: { color: '#3d5169', size: 13 } },
+    title: { text: `[${entry.id}] ${entry.cell_model} — Venting Curve`, x: 0.5, xanchor: 'center', font: { color: '#3D2D75', size: 13 } },
     xaxis: { title: 'Time (s)', ...AXIS_STYLE },
     yaxis: { title: 'Gas Mole (mol/cell)', ...AXIS_STYLE },
     showlegend: false,
@@ -1568,7 +1684,7 @@ function renderValveDbPreview() {
       hovertemplate: 'ΔP = %{x:.2f} kPa<br>Q = %{y:.3f} L/min<extra></extra>',
     };
     const layout = baseLayout({
-      title: { text: title, x: 0.5, xanchor: 'center', font: { color: '#3d5169', size: 13 } },
+      title: { text: title, x: 0.5, xanchor: 'center', font: { color: '#3D2D75', size: 13 } },
       xaxis: { title: 'ΔP (kPa)', ...AXIS_STYLE },
       yaxis: { title: 'Flow Rate (L/min)', ...AXIS_STYLE },
       showlegend: false,
@@ -1857,11 +1973,11 @@ function renderChart() {
 
 const PAGE_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 const AXIS_STYLE = {
-  showgrid: true, gridcolor: '#dbe4f0', gridwidth: 1,
-  zeroline: false, showline: true, linewidth: 1, linecolor: '#cfd8e3',
+  showgrid: true, gridcolor: '#E5E2F0', gridwidth: 1,
+  zeroline: false, showline: true, linewidth: 1, linecolor: '#C8C3DC',
   ticks: 'outside',
-  tickfont:  { color: '#6b7785', family: PAGE_FONT, size: 11 },
-  titlefont: { color: '#1a2332', family: PAGE_FONT, size: 12 },
+  tickfont:  { color: '#6B6580', family: PAGE_FONT, size: 11 },
+  titlefont: { color: '#1E1B2E', family: PAGE_FONT, size: 12 },
 };
 const PLOTLY_CFG = { displaylogo: false, responsive: true };
 
@@ -1918,7 +2034,7 @@ function renderSingle(el) {
 
   const isValve = type === 'Valve Flow and Status';
   const layout  = baseLayout({
-    title:     { text: title, x: 0.5, xanchor: 'center', font: { color: '#3d5169', size: 14 } },
+    title:     { text: title, x: 0.5, xanchor: 'center', font: { color: '#3D2D75', size: 14 } },
     xaxis:     { title: 'Time (s)', ...AXIS_STYLE },
     yaxis:     { title: yaxis, ...AXIS_STYLE },
     showlegend: hasD,
@@ -1960,7 +2076,7 @@ function renderFourGrid(el) {
   }
 
   // Annotation positions derived from domain boundaries — always centred above each subplot
-  const annFont = { color: '#3d5169', family: PAGE_FONT, size: 12 };
+  const annFont = { color: '#3D2D75', family: PAGE_FONT, size: 12 };
   const ann = (text, xd, yd) => ({
     text, xref: 'paper', yref: 'paper', showarrow: false,
     xanchor: 'center', yanchor: 'bottom',
@@ -2025,7 +2141,7 @@ function renderVertStack(el) {
   ];
   const annotations = annLabels.map((text, i) => ({
     text, xref:'paper', yref:'paper', x:0.5, y: annY[i] + 0.01,
-    showarrow:false, font:{color:'#3d5169', size:11}, xanchor:'center',
+    showarrow:false, font:{color:'#3D2D75', size:11}, xanchor:'center',
   }));
 
   const layout = {
