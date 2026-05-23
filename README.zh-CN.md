@@ -464,37 +464,11 @@ usertempkey001
 
 ## 10. 系统架构
 
-```
-                       ┌─────────────────────────────────────┐
-                       │             最终用户                  │
-                       └─────────────────────────────────────┘
-                                       │
-       ┌───────────────────┬───────────┴────────────┬─────────────────────┐
-       ▼                   ▼                        ▼                     ▼
-  ┌──────────┐      ┌─────────────┐         ┌──────────────┐      ┌──────────────┐
-  │ 浏览器    │      │ Claude Code │         │ Claude       │      │ 你的脚本     │
-  │ (Pages)  │      │ Skill +     │         │ Desktop /    │      │ (curl /      │
-  │          │      │ Relay       │         │ claude.ai    │      │  requests)   │
-  └──────────┘      └─────────────┘         └──────────────┘      └──────────────┘
-       │                   │                        │                     │
-       │       每个请求都带 X-API-Key 请求头         │                     │
-       └────────────────┬──┴──────────────┬─────────┴────────┬────────────┘
-                        ▼                 ▼                  ▼
-                ┌──────────────────────────────────────────────────┐
-                │      FastAPI 服务（Railway 托管）                  │
-                │                                                  │
-                │   /solve · /report · /databases · /parameters    │
-                │   /mcp/   (Streamable-HTTP FastMCP 子应用)        │
-                └──────────────────────────────────────────────────┘
-                                       │
-                                       ▼
-                ┌──────────────────────────────────────────────────┐
-                │   BatteryPressureSolver  (core/solver.py)        │
-                │   — SciPy BDF ODE 求解                            │
-                │   — Spring（事件分段、迟滞 + dn/dt 回座闸控）       │
-                │   — Membrane（终止锁死事件）                       │
-                └──────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img alt="btms-prv-sizing — 系统架构与数据流" src="references/architecture.png" width="820">
+</p>
+
+最终用户通过四种前端接入 FastAPI 后端——浏览器 GUI、Claude Code Skill + 本地 relay、Claude Desktop / claude.ai，或任意 HTTP 客户端——所有请求都携带相同的 `X-API-Key` 请求头。后端同时暴露常规 REST 接口（`/solve`、`/report`、`/databases`、`/parameters`）以及位于 `/mcp/` 的 Streamable-HTTP FastMCP 子应用，并最终把求解委托给 `BatteryPressureSolver`（SciPy BDF ODE，配合事件分段的 Spring 阀或终止锁死的 Membrane 阀动力学）。
 
 后端代码在**私有仓库**；本 `skill/` 目录是公开的客户端 + skill 包。
 
@@ -512,6 +486,7 @@ btms-prv-sizing-skill/                     ← 你现在的位置
 ├── references/                            ← 详细操作步骤（Claude 按需读取）
 │   ├── playbook.md                        ← MCP / Browser / HTTP 后备路径 + 分析模板
 │   ├── troubleshooting.md                 ← 运行期故障矩阵
+│   ├── architecture.png                   ← 系统架构图（§10 引用）
 │   └── img/                               ← README 中引用的截图
 └── scripts/
     ├── btms_prv_sizing_app.html           ← GUI（Plotly + 原生 JS，单文件）
@@ -625,7 +600,9 @@ Claude 会话内的常见 gotcha 见 [`references/troubleshooting.md`](reference
 ## 16. 联系方式
 
 - **Bug 报告与功能需求** — 请用 [GitHub Issues](https://github.com/ThermalMaverick/btms-prv-sizing-skill/issues)。
-- **商业授权咨询** — 提 GitHub issue 并打 `[license]` 标签，我们会转到线下沟通。
+- **商业授权咨询** — 邮件至
+  [maverick.thermal@gmail.com](mailto:maverick.thermal@gmail.com)
+  （邮件主题加上 `[license]` 前缀更佳）。
 
 ---
 

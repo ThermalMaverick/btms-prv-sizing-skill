@@ -537,38 +537,17 @@ your `.mcp.json` / Connector configuration. **No sign-up required.**
 
 ## 10. Architecture
 
-```
-                       ┌─────────────────────────────────────┐
-                       │            End User                  │
-                       └─────────────────────────────────────┘
-                                       │
-       ┌───────────────────┬───────────┴────────────┬─────────────────────┐
-       ▼                   ▼                        ▼                     ▼
-  ┌──────────┐      ┌─────────────┐         ┌──────────────┐      ┌──────────────┐
-  │ Browser  │      │ Claude Code │         │ Claude       │      │ Your script  │
-  │ (Pages)  │      │ Skill +     │         │ Desktop /    │      │ (curl /      │
-  │          │      │ Relay       │         │ claude.ai    │      │  requests)   │
-  └──────────┘      └─────────────┘         └──────────────┘      └──────────────┘
-       │                   │                        │                     │
-       │   X-API-Key header on every request        │                     │
-       └────────────────┬──┴──────────────┬─────────┴────────┬────────────┘
-                        ▼                 ▼                  ▼
-                ┌──────────────────────────────────────────────────┐
-                │      FastAPI service  (Railway-hosted)            │
-                │                                                  │
-                │   /solve · /report · /databases · /parameters    │
-                │   /mcp/   (Streamable-HTTP FastMCP sub-app)      │
-                └──────────────────────────────────────────────────┘
-                                       │
-                                       ▼
-                ┌──────────────────────────────────────────────────┐
-                │   BatteryPressureSolver  (core/solver.py)        │
-                │   — SciPy BDF ODE                                │
-                │   — Spring (event-segmented, hysteresis +        │
-                │     dn/dt reseat gate)                           │
-                │   — Membrane (terminal latch event)              │
-                └──────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img alt="btms-prv-sizing — system architecture &amp; data flow" src="references/architecture.png" width="820">
+</p>
+
+End users reach the FastAPI backend through four front-ends — the Browser
+GUI, the Claude Code Skill + local relay, Claude Desktop / claude.ai, or any
+HTTP client — all carrying the same `X-API-Key` header. The backend exposes
+both the conventional REST surface (`/solve`, `/report`, `/databases`,
+`/parameters`) and a Streamable-HTTP FastMCP sub-app at `/mcp/`, and
+delegates the actual integration to `BatteryPressureSolver` (SciPy BDF ODE
+with event-segmented Spring or terminal-latch Membrane valve dynamics).
 
 The backend lives in a **private repo**; this `skill/` directory is the
 public client + skill bundle.
@@ -587,6 +566,7 @@ btms-prv-sizing-skill/                     ← you are here
 ├── references/                            ← detailed procedures (Claude reads on demand)
 │   ├── playbook.md                        ← MCP / Browser / HTTP fallback steps + Analysis template
 │   ├── troubleshooting.md                 ← runtime-gotcha matrix
+│   ├── architecture.png                   ← system architecture diagram (used by §10)
 │   └── img/                               ← screenshots used by README
 └── scripts/
     ├── btms_prv_sizing_app.html           ← the GUI (Plotly + vanilla JS, single file)
@@ -730,8 +710,9 @@ Copyright © 2026 Thermal Maverick.
 ## 16. Contact
 
 - **Bug reports & feature requests** — please use [GitHub Issues](https://github.com/ThermalMaverick/btms-prv-sizing-skill/issues).
-- **Commercial licensing inquiries** — open a GitHub issue tagged
-  `[license]`; we will move the conversation off-platform.
+- **Commercial licensing inquiries** — email
+  [maverick.thermal@gmail.com](mailto:maverick.thermal@gmail.com)
+  (subject prefix `[license]` appreciated).
 
 ---
 
