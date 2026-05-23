@@ -113,10 +113,14 @@ into the remote MCP section of Settings → Integrations.
 
 ## Getting an API key
 
-API keys are issued via RapidAPI subscription. **[Subscribe link to be added]**
+A free trial key is available for evaluation:
 
-For local development you can run your own copy of the backend (private repo,
-not included here) and use whatever key you set in its `API_KEYS` env var.
+```
+usertempkey001
+```
+
+Paste it into the **X-API-Key** field in the browser GUI (Method 1), or put it
+in your `.mcp.json` `headers` block (Method 3). No sign-up required.
 
 ---
 
