@@ -11,14 +11,35 @@ when_to_use: User asks about PRV sizing, pressure-relief valve selection, batter
 Two execution paths share the same backend API:
 
 - **Browser Path** — local relay serves an HTML GUI; user clicks ▶ Run; results
-  auto-stream back to chat. Best for exploring, charting, and exporting reports.
+  auto-stream back to chat. Claude Code only (needs `bash`/`PowerShell` and a
+  writeable filesystem). Best for exploring, charting, and exporting reports.
 - **MCP Path** — Claude calls `prv_solve` directly via HTTP MCP; results land
-  in chat with no relay or browser. Best for "I already know my parameters"
-  and parameter sweeps.
+  in chat with no relay or browser. Works in any environment with the MCP
+  connector configured. Best for "I already know my parameters" and parameter
+  sweeps.
 
 Setup, installation, `.mcp.json` configuration, and end-user troubleshooting
 live in [README.md](README.md). This file is the **runtime playbook** —
 follow it from top to bottom every time the skill is invoked.
+
+---
+
+## Step 0 — Environment detection (run once per session)
+
+Before the Route Decision, determine which runtime profile this session is
+in. The signal is whether a shell tool is available.
+
+Check (in order):
+
+1. Scan the active tool list / system reminder for a `Bash` or `PowerShell`
+   tool whose description mentions executing shell commands. If present →
+   set `runtime = "code"`.
+2. Otherwise → set `runtime = "headless"` (Claude Desktop / claude.ai —
+   no relay, no filesystem, no browser). **Only MCP Path is available.**
+
+Remember `runtime` for the rest of the session — do NOT re-detect on every
+turn. `runtime = "code"` enables both Browser Path and MCP Path.
+`runtime = "headless"` enables MCP Path only; GUI is unavailable.
 
 ---
 
@@ -35,8 +56,14 @@ If the user message contains any of these keywords (English or Chinese):
 > `看图` / `tune` / `调参数` / `try` / `试一下` / `export` / `导出` /
 > `PDF` / `interactive` / `交互` / `slider` / `滑条` / `可视化`
 
-→ **Force Browser Path**, regardless of MCP availability or whether
-parameters were provided.
+→ **Force GUI path**, regardless of MCP availability or whether parameters
+were provided.
+- `runtime == "code"` → **Browser Path**
+- `runtime == "headless"` → GUI is unavailable; tell the user:
+  > "Interactive charts require Claude Code (shell access). In Claude
+  > Desktop / claude.ai I can only run the solver via MCP and return
+  > the result as a table. Shall I proceed with MCP?"
+  If yes → **MCP Path**; if no → stop.
 
 ### Condition 1 — Auto MCP (zero-friction calculation)
 
@@ -51,7 +78,9 @@ B. The MCP tool `prv_solve` is available in this session (see check below).
 
 ### Condition 2 — Default
 
-Anything else → **Browser Path**.
+Anything else → GUI path when `runtime == "code"` → **Browser Path**.
+When `runtime == "headless"` (no shell), skip Browser Path — ask the user
+for parameters and go to **MCP Path** (Step M1).
 
 > Never ask the user "do you want browser or MCP?" That's an implementation
 > detail. Infer from intent.
@@ -65,7 +94,8 @@ Determine availability of `prv_solve` in this order:
    `ToolSearch select:mcp__btms-prv-sizing__prv_databases,mcp__btms-prv-sizing__prv_parameters,mcp__btms-prv-sizing__prv_solve`
 3. After ToolSearch succeeds → **available**.
 4. If the tool name is absent from system-reminder entirely → **unavailable** →
-   fall back to Browser Path.
+   `runtime == "code"`: fall back to Browser Path.
+   `runtime == "headless"`: tell the user MCP is not configured; see README.
 
 > ⚠️ Do not "probe" availability by blindly calling `prv_solve`. That wastes
 > API quota and produces misleading errors.
@@ -74,7 +104,7 @@ Determine availability of `prv_solve` in this order:
 
 ## MCP Path
 
-Do **not** start the relay or open a browser. Execute these five steps in order.
+Do **not** start the relay or open a browser. Execute the steps in order.
 
 ### Step M1 — Fetch schema, disambiguate, map DB IDs
 
@@ -133,8 +163,8 @@ value, so the user can spot conversion errors at a glance:
 | p_atm        | —           | 101325 Pa      | default        | [50000, 200000] Pa |
 | t_max        | —           | 300 s          | default        | (0, 600] s         |
 | t_const      | 60°C        | 333.15 K       | user (converted)| [233.15, 473.15] K|
-| cell_db_id   | NCM523      | "cell_ncm523"  | user (matched) | —                  |
-| valve_db_id  | —           | "valve_001"    | default        | —                  |
+| cell_db_id   | NCM 40Ah    | "01" (Demo-NCM-40Ah) | user (matched) | —            |
+| valve_db_id  | —           | "01" (S001, Spring)  | default        | —            |
 ```
 
 Then prompt:
@@ -165,8 +195,11 @@ Call `prv_solve({...})` with the confirmed parameters.
 
 1. Format the result using the **Analysis template** at the bottom of this
    file.
-2. **Write `last_result.json`** at
-   `~/.claude/skills/btms-prv-sizing/scripts/last_result.json`, using the
+2. **Write `last_result.json`** — only when `runtime == "code"`. Path:
+   use **`_RESULT_PATH`** captured in Step B1 if the relay was started this
+   session; otherwise fall back to
+   `~/.claude/skills/btms-prv-sizing/scripts/last_result.json`.
+   Use the
    `/local-result-schema` field layout (identical to what the browser writes),
    **plus two marker fields**:
    ```json
@@ -178,12 +211,16 @@ Call `prv_solve({...})` with the confirmed parameters.
    watcher would mistake this MCP write for a GUI ▶ Run click and emit a
    duplicate result. The relay tags its own writes as `"browser"`; the
    watcher only emits when `__source__ == "browser"`.
-   
+
    This file is used for: (1) pre-filling the GUI form if the user later
    says "open the GUI", and (2) the HTTP-fallback re-run path.
+
+   When `runtime == "headless"` there is no filesystem — skip this step.
 3. Close with:
-   > "To re-run with different parameters, just tell me the new values.
-   > To see interactive charts, export a PDF, or tune with sliders, say
+   > "To re-run with different parameters, just tell me the new values."
+
+   When `runtime == "code"`, also offer:
+   > "To see interactive charts, export a PDF, or tune with sliders, say
    > 'open the GUI'."
 
 **On failure:**
@@ -196,7 +233,7 @@ Call `prv_solve({...})` with the confirmed parameters.
   > (1) retry,
   > (2) switch to the browser path so you can fill the form manually."
   
-  If the user picks (2), jump to **Browser Path → Pre-flight** below.
+  If the user picks (2) and `runtime == "code"`, jump to **Browser Path → Pre-flight** below.
 
 ---
 
@@ -255,6 +292,17 @@ python "$env:USERPROFILE\.claude\skills\btms-prv-sizing\scripts\local_relay.py"
 RELAY_PORT=<relay_port> python ~/.claude/skills/btms-prv-sizing/scripts/local_relay.py
 ```
 
+After starting the relay, immediately **Monitor** it for up to 3 seconds to capture
+its startup output. Find the line beginning `Results will be written to: ` and extract
+the full path that follows — store it as **`_RESULT_PATH`** for use in Steps B3 and M4.
+
+Example startup output:
+```
+PRV Sizing relay server running at http://127.0.0.1:9080
+Results will be written to: C:\Users\you\.claude\skills\btms-prv-sizing\scripts\last_result.json
+Relay token (auto-generated, posted in X-Relay-Token): abc123...
+```
+
 Wait ~1 second, then verify the relay responds:
 
 ```powershell
@@ -307,10 +355,12 @@ The watcher filters by `__source__` so that MCP-originated writes to
 emission. Only writes from the relay (which tags `__source__ == "browser"`)
 are emitted to stdout.
 
+Substitute `<_RESULT_PATH>` below with the actual path captured from relay stdout above.
+
 ```bash
 python -c "
 import pathlib, time, json
-f = pathlib.Path.home() / '.claude' / 'skills' / 'btms-prv-sizing' / 'scripts' / 'last_result.json'
+f = pathlib.Path(r'<_RESULT_PATH>')
 last_mtime = f.stat().st_mtime if f.exists() else 0.0
 while True:
     time.sleep(0.5)
@@ -343,17 +393,19 @@ Do not ask the user to paste anything.
 ## Re-run handling
 
 When the user asks to modify a parameter and recompute, **do not restart the
-relay**. Re-evaluate Route Decision instead:
+relay**. Re-evaluate Route Decision:
 
 ```
 Re-run requested
-  ├─ Explicit GUI intent ("change it in the GUI") → Browser Path
-  │      (if the relay is still running, just tell the user to tweak the
-  │      form and click ▶ Run — no relaunch needed)
+  ├─ Explicit GUI intent ("change it in the GUI") → GUI path
+  │      runtime == "code"      → Browser Path (tell user to tweak form +
+  │                                click ▶ Run; relay is already running)
+  │      runtime == "headless"  → GUI unavailable; offer MCP path instead
   ├─ MCP available                                → MCP Path
   │      (Step M1.5 conversion + Step M2 table + Step M3 confirm still apply,
   │      including for single-field tweaks)
-  └─ MCP unavailable + last_result.json exists    → HTTP Fallback below
+  └─ MCP unavailable
+         runtime == "code"      + last_result.json exists → HTTP Fallback below
 ```
 
 > Even for a single-field change, both MCP Path and HTTP Fallback **must**
@@ -412,10 +464,15 @@ overwrite `last_result.json` so the GUI form stays in sync on next launch.
 
 ### Last-resort path (MCP unavailable + no `last_result.json`)
 
-Tell the user:
+When `runtime == "code"`, tell the user:
 > "No MCP tool is available and there is no prior result on disk. I can
 > either (1) start the browser path so you can fill the form manually, or
 > (2) you can configure HTTP MCP in `.mcp.json` (see README)."
+
+When `runtime == "headless"`, tell the user:
+> "No MCP connector is available in this session and there is no GUI
+> path in Claude Desktop / claude.ai. Please configure HTTP MCP in
+> Settings → Integrations (see README) and restart the conversation."
 
 ---
 
@@ -453,10 +510,10 @@ The handful of items below are things Claude actually hits **during a
 session** — keep them in mind:
 
 - **Relay fails with `WinError 10013`** → port is reserved (often 7950–8149
-  on Hyper-V/WSL2 machines). Retry with `RELAY_PORT=9080`.
-- **Dropdowns stuck on "Loading…"** → the API is unreachable. Re-run the
-  Pre-flight `/health` curl; if local, the user probably hasn't started
-  uvicorn yet.
+  on Hyper-V/WSL2 machines). Retry with `RELAY_PORT=9080`. *(Browser Path only.)*
+- **Dropdowns stuck on "Loading…"** *(Browser Path)* → the API is unreachable.
+  Re-run the Pre-flight `/health` curl; if local, the user probably hasn't
+  started uvicorn yet.
 - **Watcher never completes** → user hasn't clicked ▶ Run, or the relay
   `/local-results` POST is failing. Ask the user to check the browser
   DevTools → Network panel.

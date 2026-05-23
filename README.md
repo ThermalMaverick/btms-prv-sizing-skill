@@ -124,13 +124,13 @@ not included here) and use whatever key you set in its `API_KEYS` env var.
 
 ```
 btms-prv-sizing-skill/
-├── README.md             ← you are here
-├── LICENSE               ← PolyForm Noncommercial 1.0.0 (commercial use prohibited)
-├── SKILL.md              ← instructions Claude follows when /btms-prv-sizing is invoked
-├── index.html            ← redirect to scripts/btms_prv_sizing_app.html (for GitHub Pages)
+├── README.md    ← you are here
+├── LICENSE      ← PolyForm Noncommercial 1.0.0 (commercial use prohibited)
+├── SKILL.md     ← instructions Claude follows when /btms-prv-sizing is invoked
+├── index.html   ← redirect to scripts/btms_prv_sizing_app.html (for GitHub Pages)
 └── scripts/
-    ├── btms_prv_sizing_app.html   ← the actual GUI (Plotly, vanilla JS, single file)
-    └── local_relay.py             ← localhost HTTP server that serves the HTML
+    ├── btms_prv_sizing_app.html   ← GUI (Plotly, vanilla JS, single file)
+    └── local_relay.py             ← localhost HTTP relay: serves the HTML
                                      and writes last_result.json on POST
 ```
 

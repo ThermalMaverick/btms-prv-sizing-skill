@@ -36,7 +36,13 @@ _HTML_FILE   = _HERE / "btms_prv_sizing_app.html"
 _RESULT_FILE = _HERE / "last_result.json"
 _PORT        = int(os.environ.get("RELAY_PORT", "8080"))
 _TOKEN       = os.environ.get("RELAY_TOKEN") or secrets.token_urlsafe(24)
-_ORIGIN      = f"http://127.0.0.1:{_PORT}"
+_MAX_BODY    = 1_048_576  # 1 MB — guards against runaway local POSTs
+# Allow both 127.0.0.1 and localhost so the browser's POST to /local-results
+# succeeds regardless of which form the user typed in the address bar.
+_ALLOWED_ORIGINS = {
+    f"http://127.0.0.1:{_PORT}",
+    f"http://localhost:{_PORT}",
+}
 
 # Placeholder the HTML may contain so we can inject the live token at serve time.
 _TOKEN_PLACEHOLDER = "__RELAY_TOKEN__"
@@ -47,9 +53,11 @@ class _RelayHandler(BaseHTTPRequestHandler):
         pass
 
     def _cors(self):
-        # Only allow the relay's own origin; never `*`. The HTML is served by
-        # the relay itself so this origin always matches the legitimate caller.
-        self.send_header("Access-Control-Allow-Origin", _ORIGIN)
+        # Echo back the request origin if it is one of the two allowed forms
+        # (127.0.0.1 or localhost on the relay port); fall back to 127.0.0.1.
+        req_origin = self.headers.get("Origin", "")
+        origin = req_origin if req_origin in _ALLOWED_ORIGINS else f"http://127.0.0.1:{_PORT}"
+        self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Relay-Token")
@@ -93,6 +101,12 @@ class _RelayHandler(BaseHTTPRequestHandler):
             return
 
         length = int(self.headers.get("Content-Length", 0))
+        if length > _MAX_BODY:
+            self.send_response(413)
+            self._cors()
+            self.end_headers()
+            self.wfile.write(b"Payload too large (> 1 MB)")
+            return
         body = self.rfile.read(length)
         try:
             data = json.loads(body)

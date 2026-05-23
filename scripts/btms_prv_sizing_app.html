@@ -231,7 +231,7 @@
     align-items: center;
     min-height: 32px;
   }
-  .field-value { /* grid col 2: 80px fixed */ }
+  .field-value { }
   .field-unit  { /* grid col 3: 62px fixed */ }
   .field-span  { grid-column: 2 / span 2; }
 
@@ -937,7 +937,7 @@
         <div class="panel-title">Simulation Operations</div>
         <div class="sim-ops-row">
           <span class="field-label">Simulation Time (s)</span>
-          <input type="number" id="t-max-input" value="60" min="1" step="1">
+          <input type="number" id="t-max-input" value="60" min="1" max="600" step="1">
           <button class="btn btn-run" id="btn-run" onclick="runSimulation()">Run Simulation</button>
           <button class="btn btn-sec" id="btn-csv" onclick="exportCSV()" disabled>Export Data</button>
           <button class="btn btn-sec" id="btn-pdf" onclick="exportPDF()" disabled>Download Report</button>
@@ -1002,9 +1002,6 @@
         </div>
         <hr class="kpi-sep">
 
-        <div style="font-size:11px; color:var(--text-muted); line-height:1.5; margin-top:8px;">
-          <strong>Disclaimer:</strong> Simulation results may differ from actual measurements and are for reference only. All input data is not stored.
-        </div>
       </div>
     </div>
 
@@ -1213,15 +1210,6 @@ function csvColumnByName(parsed, name) {
   return parsed.rows.map(r => r[i]);
 }
 
-function validateAllNonNegative(parsed, label) {
-  for (let r = 0; r < parsed.rows.length; r++) {
-    for (let c = 0; c < parsed.rows[r].length; c++) {
-      if (parsed.rows[r][c] < 0) {
-        throw new Error(`${label}: row ${r+2}, column "${parsed.headers[c]}" is negative.`);
-      }
-    }
-  }
-}
 
 function validateStrictlyIncreasing(values, label) {
   for (let i = 1; i < values.length; i++) {
@@ -1266,6 +1254,8 @@ function setStatus(statusId, text, cls) {
   el.className = `csv-upload-status${cls ? ' ' + cls : ''}`;
 }
 
+const _MAX_CSV_BYTES = 2 * 1024 * 1024;  // 2 MB
+
 async function handleCSVUpload(fileInputId, statusId, mappingBlockId, colSelectIds, onParsed) {
   // colSelectIds: array of {id, defaultIdx} for column-name dropdowns to populate.
   // onParsed(parsed): callback storing the parsed CSV in module state, or null to clear.
@@ -1274,6 +1264,12 @@ async function handleCSVUpload(fileInputId, statusId, mappingBlockId, colSelectI
   const file = input.files && input.files[0];
   if (!file) {
     setStatus(statusId, '', '');
+    mapping.classList.add('hidden');
+    onParsed(null);
+    return;
+  }
+  if (file.size > _MAX_CSV_BYTES) {
+    setStatus(statusId, `File too large: ${(file.size / 1024 / 1024).toFixed(1)} MB (limit 2 MB).`, 'err');
     mapping.classList.add('hidden');
     onParsed(null);
     return;
@@ -1297,7 +1293,10 @@ function refreshTempModeUI() {
   const mode = document.getElementById('t-mode').value;
   const isGiven = mode === 'Given Test Data';
   document.getElementById('temp-csv-block').classList.toggle('hidden', !isGiven);
-  // Initial Temperature is still meaningful in Constant mode; keep it visible always.
+  // In Given Test Data mode the temperature series from CSV drives the solver;
+  // the constant t-init field is ignored, so disable it to avoid confusion.
+  document.getElementById('t-init').disabled      = isGiven;
+  document.getElementById('t-init-unit').disabled = isGiven;
 }
 
 function refreshCellSourceUI() {
@@ -1738,30 +1737,29 @@ function buildPayload() {
   const tK      = T_TO_K[tUnit](tRaw);
   if (tK <= 0) throw new Error('Temperature must result in a positive Kelvin value.');
 
+  // ── Temperature mode ──
+  const tMode = document.getElementById('t-mode').value;
   const payload = {
     v_pack:      vPackSI,
     p_atm:       pAtmSI,
     t_max:       tMax,
-    t_mode:      'Assumed Constant',
-    t_const:     tK,
+    t_mode:      tMode,
     cell_count:  parseInt(document.getElementById('cell-count').value) || 1,
     valve_count: parseInt(document.getElementById('valve-count').value) || 1,
     max_points:  1000,
   };
+  if (tMode === 'Assumed Constant') payload.t_const = tK;
 
-  // ── Temperature mode ──
-  const tMode = document.getElementById('t-mode').value;
-  payload.t_mode = tMode;
   if (tMode === 'Given Test Data') {
     if (!parsedTempCSV) throw new Error('Temperature Mode "Given Test Data" requires a CSV upload.');
     const tCol = document.getElementById('temp-col-time').value;
     const vCol = document.getElementById('temp-col-value').value;
     if (tCol === vCol) throw new Error('Temperature CSV: Time and Temperature columns must differ.');
-    validateAllNonNegative(parsedTempCSV, 'Temperature CSV');
     const tu = document.getElementById('temp-unit-time').value;
     const vu = document.getElementById('temp-unit-value').value;
     const tRawArr = csvColumnByName(parsedTempCSV, tCol);
     const vRawArr = csvColumnByName(parsedTempCSV, vCol);
+    if (tRawArr[0] < 0) throw new Error('Temperature CSV: time values must start at ≥ 0 s.');
     validateStrictlyIncreasing(tRawArr, 'Temperature CSV time column');
     const t_s   = tRawArr.map(v => v * TIME_MAP[tu]);
     const temp_k = vRawArr.map(v => T_TO_K[vu](v));
@@ -1781,10 +1779,11 @@ function buildPayload() {
     const tCol = document.getElementById('cell-col-time').value;
     const nCol = document.getElementById('cell-col-mole').value;
     if (tCol === nCol) throw new Error('Cell CSV: Time and Gas Mole columns must differ.');
-    validateAllNonNegative(parsedCellCSV, 'Cell CSV');
     const tu = document.getElementById('cell-unit-time').value;
     const tRawArr = csvColumnByName(parsedCellCSV, tCol);
     const nRawArr = csvColumnByName(parsedCellCSV, nCol);
+    if (tRawArr[0] < 0) throw new Error('Cell CSV: time values must start at ≥ 0 s.');
+    if (nRawArr[0] < 0) throw new Error('Cell CSV: gas mole values must be non-negative.');
     validateStrictlyIncreasing(tRawArr, 'Cell CSV time column');
     validateNonDecreasing(nRawArr, 'Cell CSV gas mole column');
     payload.custom_cell = {
@@ -1810,11 +1809,12 @@ function buildPayload() {
       const pCol = document.getElementById(ids.colP).value;
       const qCol = document.getElementById(ids.colQ).value;
       if (pCol === qCol) throw new Error(`${label}: Pressure and Flow columns must differ.`);
-      validateAllNonNegative(parsed, label);
       const pu = document.getElementById(ids.unitP).value;
       const qu = document.getElementById(ids.unitQ).value;
       const pRawArr = csvColumnByName(parsed, pCol);
       const qRawArr = csvColumnByName(parsed, qCol);
+      if (pRawArr[0] < 0) throw new Error(`${label}: pressure values must be non-negative.`);
+      if (qRawArr[0] < 0) throw new Error(`${label}: flow values must be non-negative.`);
       validateStrictlyIncreasing(pRawArr, `${label} pressure column`);
       validateNonDecreasing(qRawArr, `${label} flow column`);
       return {
@@ -1883,7 +1883,15 @@ function wireInvalidationOnInputs() {
   // bubbling a change event).
   const leftPanel = document.querySelector('.col-left .panel');
   if (leftPanel) {
-    leftPanel.addEventListener('change', () => invalidateResultsIfAny('input change'));
+    leftPanel.addEventListener('change', e => {
+      // pack-limit / pack-limit-unit only affect the KPI colour threshold —
+      // they are not solver inputs, so don't invalidate the result.
+      if (e.target.id === 'pack-limit' || e.target.id === 'pack-limit-unit') {
+        if (lastResult) updateKPI(lastResult.kpi, lastPayload.p_atm);
+        return;
+      }
+      invalidateResultsIfAny('input change');
+    });
   }
   const tMaxInput = document.getElementById('t-max-input');
   if (tMaxInput) {
@@ -1915,6 +1923,7 @@ async function runSimulation() {
       throw new Error(err.detail || res.statusText);
     }
     lastResult = await res.json();
+    simTimeUserModified = false;
     resetStaleNotice();
     updateKPI(lastResult.kpi, payload.p_atm);
     renderChart();
@@ -2267,10 +2276,7 @@ function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function closeModalBg(evt, id) { if (evt.target.id === id) closeModal(id); }
 
-// Hide single-type selector when not in single mode on load
-document.addEventListener('DOMContentLoaded', () => {
-  setChartMode('single');
-});
+
 </script>
 </body>
 </html>
