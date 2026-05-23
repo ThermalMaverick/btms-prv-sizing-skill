@@ -1324,7 +1324,7 @@ function wireSourceToggles() {
   document.getElementById('cell-csv-file').addEventListener('change', () => handleCSVUpload(
     'cell-csv-file', 'cell-csv-status', 'cell-csv-mapping',
     [{id: 'cell-col-time', defaultIdx: 0}, {id: 'cell-col-mole', defaultIdx: 1}],
-    (p) => { parsedCellCSV = p; autoUpdateSimTime(); },
+    (p) => { parsedCellCSV = p; simTimeUserModified = false; autoUpdateSimTime(); },
   ));
   document.getElementById('cell-col-time').addEventListener('change', autoUpdateSimTime);
   document.getElementById('cell-unit-time').addEventListener('change', autoUpdateSimTime);
@@ -1883,16 +1883,16 @@ function wireInvalidationOnInputs() {
   // bubbling a change event).
   const leftPanel = document.querySelector('.col-left .panel');
   if (leftPanel) {
-    leftPanel.addEventListener('change', e => {
-      // pack-limit / pack-limit-unit only affect the KPI colour threshold —
-      // they are not solver inputs, so don't invalidate the result.
-      if (e.target.id === 'pack-limit' || e.target.id === 'pack-limit-unit') {
-        if (lastResult) updateKPI(lastResult.kpi, lastPayload.p_atm);
-        return;
-      }
-      invalidateResultsIfAny('input change');
-    });
+    leftPanel.addEventListener('change', () => invalidateResultsIfAny('input change'));
   }
+  // pack-limit / pack-limit-unit only affect the KPI colour threshold —
+  // stop their change events before they reach the leftPanel delegation handler.
+  ['pack-limit', 'pack-limit-unit'].forEach(id => {
+    document.getElementById(id).addEventListener('change', e => {
+      e.stopPropagation();
+      if (lastResult) updateKPI(lastResult.kpi, lastPayload.p_atm);
+    });
+  });
   const tMaxInput = document.getElementById('t-max-input');
   if (tMaxInput) {
     tMaxInput.addEventListener('change', () => invalidateResultsIfAny('sim time change'));
