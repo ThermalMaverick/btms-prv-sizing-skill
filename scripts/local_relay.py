@@ -135,7 +135,7 @@ if __name__ == "__main__":
     # resolve to ::1 (IPv6) which can trigger WinError 10013 even when
     # the port is not in the Hyper-V/WSL2 excluded range.
     server = HTTPServer(("127.0.0.1", _PORT), _RelayHandler)
-    print(f"PRV Sizing relay server running at {_ORIGIN}", flush=True)
+    print(f"PRV Sizing relay server running at http://127.0.0.1:{_PORT}", flush=True)
     print(f"Results will be written to: {_RESULT_FILE}", flush=True)
     print(f"Relay token (auto-generated, posted in X-Relay-Token): {_TOKEN}", flush=True)
     try:

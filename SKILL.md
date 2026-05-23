@@ -1,7 +1,6 @@
 ---
 name: btms-prv-sizing
-description: Size pressure-relief valves (PRVs) for battery packs. Routes to either a browser GUI (interactive Plotly charts, CSV/PDF export) or direct MCP tool calls (zero-friction parameter sweeps), depending on user intent. Backed by a FastAPI lumped-parameter BDF ODE solver.
-when_to_use: User asks about PRV sizing, pressure-relief valve selection, battery pack pressure simulation, thermal-runaway pressure modelling — in English or Chinese (泄压阀选型 / 电池包压力 / 热失控仿真) — or explicitly invokes /btms-prv-sizing.
+description: Size pressure-relief valves (PRVs) for battery packs. Routes to either a browser GUI (interactive Plotly charts, CSV/PDF export) or direct MCP tool calls (zero-friction parameter sweeps), depending on user intent. Backed by a FastAPI lumped-parameter BDF ODE solver. Use when the user asks about PRV sizing, pressure-relief valve selection, battery pack pressure simulation, thermal-runaway pressure modelling — in English or Chinese (泄压阀选型 / 电池包压力 / 热失控仿真) — or explicitly invokes /btms-prv-sizing.
 ---
 
 # btms-prv-sizing — Battery Pack PRV Sizing
@@ -19,34 +18,33 @@ Two execution paths share the same backend API:
   sweeps.
 
 Setup, installation, `.mcp.json` configuration, and end-user troubleshooting
-live in [README.md](README.md). This file is the **runtime playbook** —
-follow it from top to bottom every time the skill is invoked.
+live in [README.md](README.md). Detailed step-by-step commands for each path
+live in [references/playbook.md](references/playbook.md). Common runtime
+gotchas live in [references/troubleshooting.md](references/troubleshooting.md).
+This file is the **runtime playbook router** — follow it from top to bottom
+every time the skill is invoked.
 
 ---
 
 ## Step 0 — Environment detection (run once per session)
 
-Before the Route Decision, determine which runtime profile this session is
-in. The signal is whether a shell tool is available.
-
-Check (in order):
+Before the Route Decision, determine which runtime profile this session is in.
+The signal is whether a shell tool is available.
 
 1. Scan the active tool list / system reminder for a `Bash` or `PowerShell`
    tool whose description mentions executing shell commands. If present →
    set `runtime = "code"`.
-2. Otherwise → set `runtime = "headless"` (Claude Desktop / claude.ai —
-   no relay, no filesystem, no browser). **Only MCP Path is available.**
+2. Otherwise → set `runtime = "headless"` (Claude Desktop / claude.ai — no
+   relay, no filesystem, no browser). **Only MCP Path is available.**
 
 Remember `runtime` for the rest of the session — do NOT re-detect on every
-turn. `runtime = "code"` enables both Browser Path and MCP Path.
-`runtime = "headless"` enables MCP Path only; GUI is unavailable.
+turn.
 
 ---
 
 ## Route Decision
 
-Before doing anything else, pick an execution path. Evaluate the conditions
-in order — the first match wins.
+Evaluate in order; first match wins.
 
 ### Condition 0 — Explicit GUI intent (highest priority)
 
@@ -58,12 +56,12 @@ If the user message contains any of these keywords (English or Chinese):
 
 → **Force GUI path**, regardless of MCP availability or whether parameters
 were provided.
+
 - `runtime == "code"` → **Browser Path**
-- `runtime == "headless"` → GUI is unavailable; tell the user:
+- `runtime == "headless"` → GUI unavailable; offer to fall back to MCP:
   > "Interactive charts require Claude Code (shell access). In Claude
   > Desktop / claude.ai I can only run the solver via MCP and return
   > the result as a table. Shall I proceed with MCP?"
-  If yes → **MCP Path**; if no → stop.
 
 ### Condition 1 — Auto MCP (zero-friction calculation)
 
@@ -87,8 +85,6 @@ for parameters and go to **MCP Path** (Step M1).
 
 ### MCP Availability Check
 
-Determine availability of `prv_solve` in this order:
-
 1. Scan the most recent `<system-reminder>` for `mcp__btms-prv-sizing__prv_solve`.
 2. If present as a **deferred tool** (name only, no schema), load schemas:
    `ToolSearch select:mcp__btms-prv-sizing__prv_databases,mcp__btms-prv-sizing__prv_parameters,mcp__btms-prv-sizing__prv_solve`
@@ -102,291 +98,46 @@ Determine availability of `prv_solve` in this order:
 
 ---
 
-## MCP Path
+## MCP Path (summary)
 
-Do **not** start the relay or open a browser. Execute the steps in order.
+Five steps, detailed in [references/playbook.md § MCP Path](references/playbook.md):
 
-### Step M1 — Fetch schema, disambiguate, map DB IDs
-
-1. Call `prv_parameters` (once per session) to get default values and ranges
-   for every input field.
-2. **Ambiguity guard.** If the user offered a bare number with no field name
-   (e.g. "算一下 30 的", "100 的电芯"), ask a clarifying question before
-   continuing — avoid misreading "100Ah cell" as `cell_count = 100`:
-   > "你说的 100 是电芯数量、容量 (Ah)、还是其他？"
-3. **DB-ID mapping.** Users describe cells by model/brand
-   (e.g. "NCM523", "宁德某型"), not by `cell_db_id` string:
-   - Call `prv_databases`, fuzzy-match the description.
-   - **Match found** → adopt it; mark "matched from: \<user phrase\>" in the
-     Step M2 table.
-   - **No match** → present the available IDs and ask the user to pick. Do
-     **not** silently substitute a default ID.
-   - Same procedure for `valve_db_id`.
-
-### Step M1.5 — Unit conversion (mandatory)
-
-Users speak in everyday units; the API requires strict SI. Convert per the
-table below before building the confirmation table:
-
-| User wrote                   | API field   | API unit | Conversion       |
-|------------------------------|-------------|----------|------------------|
-| `30L` / `30 升`              | `v_pack`    | m³       | ÷ 1000           |
-| `1 atm`                      | `p_atm`     | Pa       | × 101325         |
-| `101 kPa` / `100 kPa`        | `p_atm`     | Pa       | × 1000           |
-| `60°C` / `60 度`             | `t_const`   | K        | + 273.15         |
-| `333 K`                      | `t_const`   | K        | as-is            |
-| `5 分钟` / `5 min`           | `t_max`     | s        | × 60             |
-| `300 秒` / `300 s`           | `t_max`     | s        | as-is            |
-
-**Range check** — if any converted value falls outside its valid range,
-**tell the user immediately and stop**; do not submit out-of-range values:
-
-- `v_pack ∈ (0, 10] m³`
-- `p_atm ∈ [50000, 200000] Pa`
-- `t_max ∈ (0, 600] s`
-- `t_const ∈ [233.15, 473.15] K`
-- `cell_count ∈ [1, 500]`
-- `valve_count ∈ [1, 50]`
-
-### Step M2 — Build the parameter confirmation table
-
-Merge user-supplied values (post-conversion) with schema defaults. Show the
-**full parameter list** with both the user's original phrasing and the SI
-value, so the user can spot conversion errors at a glance:
-
-```
-| Field        | User input  | SI value       | Source         | Range              |
-|--------------|-------------|----------------|----------------|--------------------|
-| v_pack       | 30L         | 0.030 m³       | user           | (0, 10] m³         |
-| cell_count   | 100         | 100            | user           | [1, 500]           |
-| valve_count  | —           | 2              | default        | [1, 50]            |
-| p_atm        | —           | 101325 Pa      | default        | [50000, 200000] Pa |
-| t_max        | —           | 300 s          | default        | (0, 600] s         |
-| t_const      | 60°C        | 333.15 K       | user (converted)| [233.15, 473.15] K|
-| cell_db_id   | NCM 40Ah    | "01" (Demo-NCM-40Ah) | user (matched) | —            |
-| valve_db_id  | —           | "01" (S001, Spring)  | default        | —            |
-```
-
-Then prompt:
-> "Here is the full parameter set — your values converted to SI, defaults
-> filled in for the rest. Confirm to run, or tell me what to change."
-
-**Single-parameter re-run shortcut.** When only one field differs from the
-previous run, use a diff-style summary to avoid confirmation fatigue:
-
-```
-Changing: valve_count: 2 → 4
-All other parameters unchanged from last run (v_pack=0.030 m³, cell_count=100, …).
-Confirm to run.
-```
-
-### Step M3 — Wait for confirmation
-
-- User confirms (e.g. "OK", "确认", "go", "算", "没问题") → proceed to Step M4.
-- User corrects a value → return to **Step M1.5** (re-convert + re-range-check)
-  → redraw the table → wait again.
-- **Never call `prv_solve` before explicit confirmation.**
-
-### Step M4 — Solve, report, persist
-
-Call `prv_solve({...})` with the confirmed parameters.
-
-**On success:**
-
-1. Format the result using the **Analysis template** at the bottom of this
-   file.
-2. **Write `last_result.json`** — only when `runtime == "code"`. Path:
-   use **`_RESULT_PATH`** captured in Step B1 if the relay was started this
-   session; otherwise fall back to
-   `~/.claude/skills/btms-prv-sizing/scripts/last_result.json`.
-   Use the
-   `/local-result-schema` field layout (identical to what the browser writes),
-   **plus two marker fields**:
-   ```json
-   { "...standard fields...": "...",
-     "__source__":     "mcp",
-     "__written_at__": <unix_seconds> }
-   ```
-   The `__source__` tag is critical — without it, the long-lived Step B3
-   watcher would mistake this MCP write for a GUI ▶ Run click and emit a
-   duplicate result. The relay tags its own writes as `"browser"`; the
-   watcher only emits when `__source__ == "browser"`.
-
-   This file is used for: (1) pre-filling the GUI form if the user later
-   says "open the GUI", and (2) the HTTP-fallback re-run path.
-
-   When `runtime == "headless"` there is no filesystem — skip this step.
-3. Close with:
-   > "To re-run with different parameters, just tell me the new values."
-
-   When `runtime == "code"`, also offer:
-   > "To see interactive charts, export a PDF, or tune with sliders, say
-   > 'open the GUI'."
-
-**On failure:**
-
-- **API returned non-2xx** (e.g. validation error, 4xx, 5xx) → parse the error
-  body, tell the user exactly which parameter is wrong, and return to Step M2.
-- **MCP call itself raised** (network / auth / MCP server down) → tell the
-  user and offer a fallback:
-  > "MCP call failed: \<reason\>. Options:
-  > (1) retry,
-  > (2) switch to the browser path so you can fill the form manually."
-  
-  If the user picks (2) and `runtime == "code"`, jump to **Browser Path → Pre-flight** below.
+1. **M1** — Fetch parameter schema (`prv_parameters`), disambiguate bare
+   numbers, fuzzy-match `cell_db_id` / `valve_db_id` from user phrases.
+2. **M1.5** — Convert user units (L → m³, °C → K, kPa → Pa, min → s) and
+   range-check every converted value.
+3. **M2** — Build the full parameter confirmation table (user input + SI value
+   + source + range).
+4. **M3** — Wait for explicit confirmation. **Never call `prv_solve` before
+   the user confirms.**
+5. **M4** — Call `prv_solve`, format with the Analysis template
+   ([references/playbook.md § Analysis template](references/playbook.md)), and
+   when `runtime == "code"` write `last_result.json` with the marker fields
+   `__source__: "mcp"` + `__written_at__`.
 
 ---
 
-## Browser Path
+## Browser Path (summary)
 
-### Pre-flight
+Four steps, detailed in [references/playbook.md § Browser Path](references/playbook.md):
 
-Ask the user for three values (or reuse what they already gave):
+1. **Pre-flight** — collect API endpoint, key, relay port; verify `/health`.
+2. **B1** — Start `local_relay.py` in the background (Windows: bind to
+   `127.0.0.1`, set `RELAY_PORT`); capture `_RESULT_PATH` from its banner.
+3. **B2** — Open the browser at `http://127.0.0.1:<relay_port>`.
+4. **B3** — Launch the long-lived watcher (one command — see below); read
+   each emitted JSON line via the Monitor tool.
+5. **B4** — Format each result with the Analysis template.
 
-1. **API endpoint** — e.g. `https://btms-prv-sizing.up.railway.app` (production)
-   or `http://127.0.0.1:9000` (local dev).
-2. **API key** — the `X-API-Key` value.
-3. **Relay port** — default **9080** on Windows; ports 7950–8149 are often
-   reserved by Hyper-V/WSL2. On macOS/Linux **8080** is fine unless taken.
-
-Verify the API is reachable before touching the relay:
-
-```powershell
-# Windows
-curl.exe <api_endpoint>/health
-```
+The watcher is a single dedicated script — invoke it with the result path
+captured in B1:
 
 ```bash
-# macOS / Linux
-curl -s <api_endpoint>/health
+python "<path-to>/skill/scripts/watch_results.py" "<_RESULT_PATH>"
 ```
 
-Expect `{"status":"ok"}`. If `/health` fails:
-
-- **Production** — service is likely down; ask the user to check the provider's
-  status page.
-- **Local** — instruct the user to start the backend in a **separate terminal
-  outside Claude Code** and confirm back:
-  ```
-  uv run uvicorn api.main:app --host 127.0.0.1 --port <api_port> --reload --env-file .env
-  ```
-
-> Do not proceed until `/health` returns 200. The API's CORS rule auto-allows
-> any `localhost` / `127.0.0.1` origin on any port, so no extra CORS config is
-> needed.
-
-### Step B1 — Start the relay (background)
-
-Run with `run_in_background: true`. On Windows always set `RELAY_PORT` and
-bind to `127.0.0.1` — using `"localhost"` on Windows 11 can fail with
-`WinError 10013` because it resolves to `::1` IPv6.
-
-```powershell
-# Windows
-$env:RELAY_PORT = "<relay_port>"
-python "$env:USERPROFILE\.claude\skills\btms-prv-sizing\scripts\local_relay.py"
-```
-
-```bash
-# macOS / Linux
-RELAY_PORT=<relay_port> python ~/.claude/skills/btms-prv-sizing/scripts/local_relay.py
-```
-
-After starting the relay, immediately **Monitor** it for up to 3 seconds to capture
-its startup output. Find the line beginning `Results will be written to: ` and extract
-the full path that follows — store it as **`_RESULT_PATH`** for use in Steps B3 and M4.
-
-Example startup output:
-```
-PRV Sizing relay server running at http://127.0.0.1:9080
-Results will be written to: C:\Users\you\.claude\skills\btms-prv-sizing\scripts\last_result.json
-Relay token (auto-generated, posted in X-Relay-Token): abc123...
-```
-
-Wait ~1 second, then verify the relay responds:
-
-```powershell
-# Windows
-curl.exe http://127.0.0.1:<relay_port>/
-```
-
-```bash
-# macOS / Linux
-curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:<relay_port>/
-```
-
-Expect HTTP 200. If connection refused, the port may be in the Windows
-excluded range (`netsh interface ipv4 show excludedportrange protocol=tcp`)
-— retry with a different port.
-
-### Step B2 — Open the browser
-
-Always use `127.0.0.1` (not `localhost`) to dodge DNS/IPv6 issues.
-
-```powershell
-# Windows
-Start-Process "http://127.0.0.1:<relay_port>"
-```
-
-```bash
-# macOS
-open http://127.0.0.1:<relay_port>
-```
-
-```bash
-# Linux
-xdg-open http://127.0.0.1:<relay_port>
-```
-
-Tell the user:
-> "The PRV Sizing Tool is open at http://127.0.0.1:\<relay_port\>. Your API
-> endpoint and key should be pre-filled from last time. If the dropdowns are
-> stuck on 'Loading…', the API is unreachable — re-run Pre-flight. Once
-> databases load, set your parameters and click ▶ Run."
-
-### Step B3 — Watch for results (background, long-lived)
-
-Run with `run_in_background: true`. The watcher must stay alive for the
-entire session so multiple ▶ Run clicks all get streamed back to chat —
-do **not** exit after the first hit.
-
-The watcher filters by `__source__` so that MCP-originated writes to
-`last_result.json` (see Step M4) **do not** trigger a fake "GUI result"
-emission. Only writes from the relay (which tags `__source__ == "browser"`)
-are emitted to stdout.
-
-Substitute `<_RESULT_PATH>` below with the actual path captured from relay stdout above.
-
-```bash
-python -c "
-import pathlib, time, json
-f = pathlib.Path(r'<_RESULT_PATH>')
-last_mtime = f.stat().st_mtime if f.exists() else 0.0
-while True:
-    time.sleep(0.5)
-    if not f.exists():
-        continue
-    mt = f.stat().st_mtime
-    if mt <= last_mtime:
-        continue
-    last_mtime = mt
-    try:
-        data = json.loads(f.read_text(encoding='utf-8'))
-    except Exception:
-        continue
-    if data.get('__source__') == 'browser':
-        print(json.dumps(data), flush=True)
-"
-```
-
-Read each new line of the watcher's stdout via the **Monitor** tool — each
-JSON line is one ▶ Run click from the browser. There is no need (and no way)
-to re-launch the watcher between clicks.
-
-### Step B4 — Report
-
-When the watcher emits the JSON, format it with the **Analysis template**.
-Do not ask the user to paste anything.
+Run with `run_in_background: true` and let it stay alive for the entire
+session. Every ▶ Run click writes a new line.
 
 ---
 
@@ -402,120 +153,29 @@ Re-run requested
   │                                click ▶ Run; relay is already running)
   │      runtime == "headless"  → GUI unavailable; offer MCP path instead
   ├─ MCP available                                → MCP Path
-  │      (Step M1.5 conversion + Step M2 table + Step M3 confirm still apply,
-  │      including for single-field tweaks)
+  │      (Step M1.5 + M2 + M3 still apply, even for single-field tweaks)
   └─ MCP unavailable
-         runtime == "code"      + last_result.json exists → HTTP Fallback below
+         runtime == "code"      + last_result.json exists → HTTP Fallback
+         (see references/playbook.md § HTTP Fallback)
 ```
 
 > Even for a single-field change, both MCP Path and HTTP Fallback **must**
-> show the confirmation table before calling the API. Use Step M2's
-> diff-style shortcut to avoid fatigue.
-
-### HTTP Fallback (MCP unavailable + `last_result.json` present)
-
-1. Read `last_result.json` to recover the previous inputs.
-2. Apply the user's edit.
-3. Re-convert + range-check exactly as in **Step M1.5**.
-4. Show the confirmation table exactly as in **Step M2**.
-5. **Only after the user confirms**, POST to `<api_endpoint>/solve`:
-
-```powershell
-# Windows PowerShell — run only after user confirms
-$r = Get-Content "$env:USERPROFILE\.claude\skills\btms-prv-sizing\scripts\last_result.json" `
-     -Encoding utf8 | ConvertFrom-Json
-
-$body = [ordered]@{
-    v_pack      = $r.v_pack_L / 1000      # L  → m³
-    p_atm       = $r.p_atm_kpa * 1000     # kPa → Pa
-    t_max       = $r.t_max_s
-    t_const     = $r.t_const_k
-    cell_count  = $r.cell_count
-    valve_count = <new value>             # user's edit
-    cell_db_id  = $r.cell_db_id
-    valve_db_id = $r.valve_db_id
-} | ConvertTo-Json
-
-Invoke-RestMethod -Uri "<api_endpoint>/solve" -Method POST `
-    -Headers @{"X-API-Key" = "<api_key>"} -ContentType "application/json" `
-    -Body $body -UseBasicParsing
-```
-
-```bash
-# macOS / Linux (jq + curl) — run only after user confirms
-F=~/.claude/skills/btms-prv-sizing/scripts/last_result.json
-body=$(jq -n --argjson r "$(cat $F)" --argjson valve_count <new value> '{
-  v_pack:      ($r.v_pack_L  / 1000),
-  p_atm:       ($r.p_atm_kpa * 1000),
-  t_max:        $r.t_max_s,
-  t_const:      $r.t_const_k,
-  cell_count:   $r.cell_count,
-  valve_count:  $valve_count,
-  cell_db_id:   $r.cell_db_id,
-  valve_db_id:  $r.valve_db_id
-}')
-curl -s -X POST <api_endpoint>/solve \
-     -H "X-API-Key: <api_key>" -H "Content-Type: application/json" \
-     -d "$body"
-```
-
-After the response arrives, format with the Analysis template. Optionally
-overwrite `last_result.json` so the GUI form stays in sync on next launch.
-
-### Last-resort path (MCP unavailable + no `last_result.json`)
-
-When `runtime == "code"`, tell the user:
-> "No MCP tool is available and there is no prior result on disk. I can
-> either (1) start the browser path so you can fill the form manually, or
-> (2) you can configure HTTP MCP in `.mcp.json` (see README)."
-
-When `runtime == "headless"`, tell the user:
-> "No MCP connector is available in this session and there is no GUI
-> path in Claude Desktop / claude.ai. Please configure HTTP MCP in
-> Settings → Integrations (see README) and restart the conversation."
+> show the confirmation table before calling the API. Use the diff-style
+> shortcut in M2 to avoid fatigue.
 
 ---
 
-## Analysis template
+## Runtime gotchas (quick reference)
 
-```
-## PRV Sizing Result
+Full troubleshooting matrix lives in
+[references/troubleshooting.md](references/troubleshooting.md). The handful of
+items Claude actually hits **during a session**:
 
-| Parameter         | Value                                  |
-|-------------------|----------------------------------------|
-| Peak Pressure     | {peak_pressure_kpa:.2f} kPa (absolute) |
-| Relative Peak     | {relative_peak_pressure_kpa:.2f} kPa   |
-| Valve Opened      | {Yes/No}                               |
-| First Open Time   | {first_open_time_s:.2f} s              |
-| Pack Volume       | {v_pack_L} L                           |
-| Cell Count        | {cell_count}                           |
-| Valve Count       | {valve_count}                          |
-| Ambient Pressure  | {p_atm_kpa} kPa                        |
-| Simulation Time   | {t_max_s} s                            |
-```
-
-Follow the table with **2–4 sentences** of engineering commentary covering:
-
-- Whether the peak pressure is within typical structural limits.
-- Whether the valve timing looks reasonable relative to the venting duration.
-- Whether more valves or a different opening pressure might improve the result.
-- A concrete suggestion for the next design iteration.
-
----
-
-## Runtime hints
-
-Most setup-time and end-user troubleshooting lives in [README.md](README.md).
-The handful of items below are things Claude actually hits **during a
-session** — keep them in mind:
-
-- **Relay fails with `WinError 10013`** → port is reserved (often 7950–8149
-  on Hyper-V/WSL2 machines). Retry with `RELAY_PORT=9080`. *(Browser Path only.)*
-- **Dropdowns stuck on "Loading…"** *(Browser Path)* → the API is unreachable.
-  Re-run the Pre-flight `/health` curl; if local, the user probably hasn't
-  started uvicorn yet.
-- **Watcher never completes** → user hasn't clicked ▶ Run, or the relay
-  `/local-results` POST is failing. Ask the user to check the browser
-  DevTools → Network panel.
-- **MCP `/mcp` shows "Invalid Host header"** → the API server is missing
-  `MCP_ALLOWED_HOSTS`; the user (or API provider) needs to set it.
+- **Relay fails with `WinError 10013`** → port is reserved. Retry with
+  `RELAY_PORT=9080`.
+- **Dropdowns stuck on "Loading…"** → API is unreachable. Re-run Pre-flight
+  `/health` curl.
+- **Watcher never emits** → user hasn't clicked ▶ Run, or the relay
+  `/local-results` POST is failing.
+- **MCP `/mcp` shows "Invalid Host header"** → API server needs
+  `MCP_ALLOWED_HOSTS` set.
