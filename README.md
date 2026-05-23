@@ -34,15 +34,15 @@ valve pressure–flow curves. The same backend powers all three frontends.
 ## Table of Contents
 
 1. [Overview](#1-overview)
-2. [⚠️ DEMO Data Disclaimer](#2--demo-data-disclaimer)
+2. [Architecture](#2-architecture)
 3. [Quick Start by User Type](#3-quick-start-by-user-type)
 4. [Browser GUI (zero install)](#4-browser-gui-zero-install)
 5. [Claude Code Skill](#5-claude-code-skill)
 6. [Claude Desktop &amp; claude.ai](#6-claude-desktop--claudeai)
 7. [REST API Reference](#7-rest-api-reference)
-8. [Bring-Your-Own Data (BYO)](#8-bring-your-own-data-byo)
-9. [Getting an API Key](#9-getting-an-api-key)
-10. [Architecture](#10-architecture)
+8. [⚠️ DEMO Data Disclaimer](#8--demo-data-disclaimer)
+9. [Bring-Your-Own Data (BYO)](#9-bring-your-own-data-byo)
+10. [Getting an API Key](#10-getting-an-api-key)
 11. [Repository Layout](#11-repository-layout)
 12. [Troubleshooting](#12-troubleshooting)
 13. [FAQ](#13-faq)
@@ -86,20 +86,28 @@ analysis (more valves? higher opening pressure?), and Claude-driven
 CFD + cell-vent test data), or any decision that exposes humans or property
 to risk without independent verification.
 
+> ⚠️ All bundled cell/valve data is demonstration-only — see
+> [§8 DEMO Data Disclaimer](#8--demo-data-disclaimer) before any real
+> engineering decision.
+
 ---
 
-## 2. ⚠️ DEMO Data Disclaimer
+## 2. Architecture
 
-> **The cell and valve entries shipped with this service are 100 % fabricated
-> for demonstration purposes.** They are not measured, not vendor-supplied,
-> and not validated against any physical experiment.
->
-> Every response from `GET /databases/*` carries `data_notice:
-> "DEMO_ONLY_FABRICATED – not for real design use"`. Treat the bundled IDs as
-> _placeholders_ that let you exercise the API surface end-to-end.
->
-> **For any real engineering decision, supply your own measured data via the
-> [Bring-Your-Own Data](#8-bring-your-own-data-byo) path.**
+<p align="center">
+  <img alt="btms-prv-sizing — system architecture &amp; data flow" src="references/img/architecture.png" width="820">
+</p>
+
+End users reach the FastAPI backend through four front-ends — the Browser
+GUI, the Claude Code Skill + local relay, Claude Desktop / claude.ai, or any
+HTTP client — all carrying the same `X-API-Key` header. The backend exposes
+both the conventional REST surface (`/solve`, `/report`, `/databases`,
+`/parameters`) and a Streamable-HTTP FastMCP sub-app at `/mcp/`, and
+delegates the actual integration to `BatteryPressureSolver` (SciPy BDF ODE
+with event-segmented Spring or terminal-latch Membrane valve dynamics).
+
+The backend lives in a **private repo**; this `skill/` directory is the
+public client + skill bundle.
 
 ---
 
@@ -135,7 +143,7 @@ in your browser.**
 1. **Open the link** above in any modern browser (Chrome, Edge, Firefox, Safari).
 2. **Configure the connection** in the top bar:
    - **API Endpoint** — `https://btms-prv-sizing.up.railway.app`
-   - **X-API-Key** — paste your key (see [§9](#9-getting-an-api-key) — the
+   - **X-API-Key** — paste your key (see [§10](#10-getting-an-api-key) — the
      trial key is `usertempkey001`)
 
    Both values are saved in your browser's `localStorage` and pre-filled on
@@ -275,7 +283,7 @@ There are **two complementary integration methods**:
 - **Claude Desktop:** version with the Customize menu (2025-Q4 or newer).
 - **claude.ai:** account on Pro, Max, Team, or Enterprise plan (Free plan
   cannot add custom Connectors).
-- An API key — see [§9](#9-getting-an-api-key).
+- An API key — see [§10](#10-getting-an-api-key).
 
 ### 6.2 Method A — Upload as Skill
 
@@ -448,7 +456,22 @@ Exceeded → `429 Too Many Requests` with `Retry-After: 60`. Override with the
 
 ---
 
-## 8. Bring-Your-Own Data (BYO)
+## 8. ⚠️ DEMO Data Disclaimer
+
+> **The cell and valve entries shipped with this service are 100 % fabricated
+> for demonstration purposes.** They are not measured, not vendor-supplied,
+> and not validated against any physical experiment.
+>
+> Every response from `GET /databases/*` carries `data_notice:
+> "DEMO_ONLY_FABRICATED – not for real design use"`. Treat the bundled IDs as
+> _placeholders_ that let you exercise the API surface end-to-end.
+>
+> **For any real engineering decision, supply your own measured data via the
+> [Bring-Your-Own Data](#9-bring-your-own-data-byo) path.**
+
+---
+
+## 9. Bring-Your-Own Data (BYO)
 
 The bundled cell/valve entries are demo data. For real design work, supply
 your own venting curve and/or your own valve P-Q curve in the same request.
@@ -513,7 +536,7 @@ run two separate simulations and compare.
 
 ---
 
-## 9. Getting an API Key
+## 10. Getting an API Key
 
 For evaluation and trial use, the following key works out of the box on the
 hosted service:
@@ -535,25 +558,6 @@ your `.mcp.json` / Connector configuration. **No sign-up required.**
 
 ---
 
-## 10. Architecture
-
-<p align="center">
-  <img alt="btms-prv-sizing — system architecture &amp; data flow" src="references/architecture.png" width="820">
-</p>
-
-End users reach the FastAPI backend through four front-ends — the Browser
-GUI, the Claude Code Skill + local relay, Claude Desktop / claude.ai, or any
-HTTP client — all carrying the same `X-API-Key` header. The backend exposes
-both the conventional REST surface (`/solve`, `/report`, `/databases`,
-`/parameters`) and a Streamable-HTTP FastMCP sub-app at `/mcp/`, and
-delegates the actual integration to `BatteryPressureSolver` (SciPy BDF ODE
-with event-segmented Spring or terminal-latch Membrane valve dynamics).
-
-The backend lives in a **private repo**; this `skill/` directory is the
-public client + skill bundle.
-
----
-
 ## 11. Repository Layout
 
 ```
@@ -566,8 +570,8 @@ btms-prv-sizing-skill/                     ← you are here
 ├── references/                            ← detailed procedures (Claude reads on demand)
 │   ├── playbook.md                        ← MCP / Browser / HTTP fallback steps + Analysis template
 │   ├── troubleshooting.md                 ← runtime-gotcha matrix
-│   ├── architecture.png                   ← system architecture diagram (used by §10)
-│   └── img/                               ← screenshots used by README
+│   └── img/                               ← screenshots + architecture diagram
+│       └── architecture.png               ← system architecture diagram (used by §2)
 └── scripts/
     ├── btms_prv_sizing_app.html           ← the GUI (Plotly + vanilla JS, single file)
     ├── local_relay.py                     ← localhost HTTP relay: serves the HTML, accepts results
@@ -610,7 +614,7 @@ Real vendor data on cell venting curves and valve P-Q characteristics is
 covered by NDA in almost every commercial relationship. Shipping fabricated
 DEMO data lets anyone exercise the API end-to-end without negotiating data
 licenses; you are expected to plug in your own measured curves via
-[BYO](#8-bring-your-own-data-byo) for any real engineering work.
+[BYO](#9-bring-your-own-data-byo) for any real engineering work.
 
 </details>
 

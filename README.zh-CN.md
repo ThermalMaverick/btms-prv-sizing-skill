@@ -29,15 +29,15 @@
 ## 目录
 
 1. [项目简介](#1-项目简介)
-2. [⚠️ DEMO 数据声明](#2--demo-数据声明)
+2. [系统架构](#2-系统架构)
 3. [按用户类型快速开始](#3-按用户类型快速开始)
 4. [浏览器 GUI（零安装）](#4-浏览器-gui零安装)
 5. [Claude Code Skill](#5-claude-code-skill)
 6. [Claude Desktop 与 claude.ai](#6-claude-desktop-与-claudeai)
 7. [REST API 参考](#7-rest-api-参考)
-8. [自定义数据（BYO）](#8-自定义数据byo)
-9. [获取 API Key](#9-获取-api-key)
-10. [系统架构](#10-系统架构)
+8. [⚠️ DEMO 数据声明](#8--demo-数据声明)
+9. [自定义数据（BYO）](#9-自定义数据byo)
+10. [获取 API Key](#10-获取-api-key)
 11. [仓库结构](#11-仓库结构)
 12. [故障排查](#12-故障排查)
 13. [FAQ](#13-faq)
@@ -68,15 +68,20 @@
 
 **不适用场景**：最终合规性认证（请使用经验证的 CFD + 电芯实测数据）；或任何在未经独立验证的情况下危及人身或财产安全的决策。
 
+> ⚠️ 所有自带的电芯/阀门数据均为演示用途——任何真实工程决策前请先看
+> [§8 DEMO 数据声明](#8--demo-数据声明)。
+
 ---
 
-## 2. ⚠️ DEMO 数据声明
+## 2. 系统架构
 
-> **本服务自带的电芯与阀门数据为 100% 虚构数据，仅供演示。** 它们既非实测、也非厂家提供、也未经任何物理实验验证。
->
-> `GET /databases/*` 的每条响应中都带有 `data_notice: "DEMO_ONLY_FABRICATED – not for real design use"` 字段。请将自带的 ID 视为**占位符**，方便你端到端走通 API。
->
-> **任何真实工程决策必须通过 [自定义数据 BYO 模式](#8-自定义数据byo) 提供你自己的实测数据。**
+<p align="center">
+  <img alt="btms-prv-sizing — 系统架构与数据流" src="references/img/architecture.png" width="820">
+</p>
+
+最终用户通过四种前端接入 FastAPI 后端——浏览器 GUI、Claude Code Skill + 本地 relay、Claude Desktop / claude.ai，或任意 HTTP 客户端——所有请求都携带相同的 `X-API-Key` 请求头。后端同时暴露常规 REST 接口（`/solve`、`/report`、`/databases`、`/parameters`）以及位于 `/mcp/` 的 Streamable-HTTP FastMCP 子应用，并最终把求解委托给 `BatteryPressureSolver`（SciPy BDF ODE，配合事件分段的 Spring 阀或终止锁死的 Membrane 阀动力学）。
+
+后端代码在**私有仓库**；本 `skill/` 目录是公开的客户端 + skill 包。
 
 ---
 
@@ -110,7 +115,7 @@
 1. **在任意现代浏览器中打开链接**（Chrome、Edge、Firefox、Safari 均可）。
 2. **在顶部配置栏填入连接信息**：
    - **API Endpoint** — `https://btms-prv-sizing.up.railway.app`
-   - **X-API-Key** — 粘贴你的 key（见 [§9](#9-获取-api-key)，试用 key 为 `usertempkey001`）
+   - **X-API-Key** — 粘贴你的 key（见 [§10](#10-获取-api-key)，试用 key 为 `usertempkey001`）
 
    两个值都会自动存入浏览器 `localStorage`，下次访问自动预填。
 3. **在左侧面板的两个下拉框中选择电芯和阀门**。列表通过 `GET /databases/cells` 与 `GET /databases/valves` 实时拉取。
@@ -229,7 +234,7 @@ Claude 会：
 
 - **Claude Desktop：** 带 Customize 菜单的版本（2025-Q4 或更新）。
 - **claude.ai：** Pro、Max、Team 或 Enterprise plan 账户（Free 无法添加自定义 Connector）。
-- 一把 API key——见 [§9](#9-获取-api-key)。
+- 一把 API key——见 [§10](#10-获取-api-key)。
 
 ### 6.2 方法 A — 上传为 Skill
 
@@ -385,7 +390,17 @@ curl -X POST https://btms-prv-sizing.up.railway.app/solve \
 
 ---
 
-## 8. 自定义数据（BYO）
+## 8. ⚠️ DEMO 数据声明
+
+> **本服务自带的电芯与阀门数据为 100% 虚构数据，仅供演示。** 它们既非实测、也非厂家提供、也未经任何物理实验验证。
+>
+> `GET /databases/*` 的每条响应中都带有 `data_notice: "DEMO_ONLY_FABRICATED – not for real design use"` 字段。请将自带的 ID 视为**占位符**，方便你端到端走通 API。
+>
+> **任何真实工程决策必须通过 [自定义数据 BYO 模式](#9-自定义数据byo) 提供你自己的实测数据。**
+
+---
+
+## 9. 自定义数据（BYO）
 
 自带的电芯/阀门数据均为 demo 数据。真实设计工作中，请在同一个请求里提供你自己的排气曲线和/或阀门 P-Q 曲线。
 
@@ -446,7 +461,7 @@ curl -X POST https://btms-prv-sizing.up.railway.app/solve \
 
 ---
 
-## 9. 获取 API Key
+## 10. 获取 API Key
 
 试用评估直接用以下 key 即可，在线服务开箱可用：
 
@@ -462,18 +477,6 @@ usertempkey001
 
 ---
 
-## 10. 系统架构
-
-<p align="center">
-  <img alt="btms-prv-sizing — 系统架构与数据流" src="references/architecture.png" width="820">
-</p>
-
-最终用户通过四种前端接入 FastAPI 后端——浏览器 GUI、Claude Code Skill + 本地 relay、Claude Desktop / claude.ai，或任意 HTTP 客户端——所有请求都携带相同的 `X-API-Key` 请求头。后端同时暴露常规 REST 接口（`/solve`、`/report`、`/databases`、`/parameters`）以及位于 `/mcp/` 的 Streamable-HTTP FastMCP 子应用，并最终把求解委托给 `BatteryPressureSolver`（SciPy BDF ODE，配合事件分段的 Spring 阀或终止锁死的 Membrane 阀动力学）。
-
-后端代码在**私有仓库**；本 `skill/` 目录是公开的客户端 + skill 包。
-
----
-
 ## 11. 仓库结构
 
 ```
@@ -486,8 +489,8 @@ btms-prv-sizing-skill/                     ← 你现在的位置
 ├── references/                            ← 详细操作步骤（Claude 按需读取）
 │   ├── playbook.md                        ← MCP / Browser / HTTP 后备路径 + 分析模板
 │   ├── troubleshooting.md                 ← 运行期故障矩阵
-│   ├── architecture.png                   ← 系统架构图（§10 引用）
-│   └── img/                               ← README 中引用的截图
+│   └── img/                               ← README 中引用的截图与架构图
+│       └── architecture.png               ← 系统架构图（§2 引用）
 └── scripts/
     ├── btms_prv_sizing_app.html           ← GUI（Plotly + 原生 JS，单文件）
     ├── local_relay.py                     ← 本地 HTTP relay：托管 HTML、接收结果
@@ -523,7 +526,7 @@ Claude 会话内的常见 gotcha 见 [`references/troubleshooting.md`](reference
 <details>
 <summary><strong>为什么自带的电芯和阀门数据是虚构的？</strong></summary>
 
-电芯排气曲线和阀门 P-Q 特性在几乎所有商业关系中都受 NDA 保护。我们提供虚构的 DEMO 数据，是为了让任何人都能在无需谈判数据授权的前提下端到端跑通 API——你被预期在真实工程中通过 [BYO](#8-自定义数据byo) 接入自己的实测曲线。
+电芯排气曲线和阀门 P-Q 特性在几乎所有商业关系中都受 NDA 保护。我们提供虚构的 DEMO 数据，是为了让任何人都能在无需谈判数据授权的前提下端到端跑通 API——你被预期在真实工程中通过 [BYO](#9-自定义数据byo) 接入自己的实测曲线。
 
 </details>
 
