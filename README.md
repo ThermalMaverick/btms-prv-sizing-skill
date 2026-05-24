@@ -128,6 +128,10 @@ whichever fits your workflow.
 
 ## 4. Browser GUI (zero install)
 
+<p align="center">
+  <img alt="GUI overview" src="references/img/gui-overview.png" width="820">
+</p>
+
 The fastest way to try the tool. **No install, no dependencies, runs entirely
 in your browser.**
 

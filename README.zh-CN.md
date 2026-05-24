@@ -101,6 +101,10 @@
 
 ## 4. 浏览器 GUI（零安装）
 
+<p align="center">
+  <img alt="GUI 总览" src="references/img/gui-overview.png" width="820">
+</p>
+
 最快上手的方式。**无需安装、无任何依赖、纯浏览器运行。**
 
 > 🌐 **在线演示：** [thermalmaverick.github.io/btms-prv-sizing-skill](https://thermalmaverick.github.io/btms-prv-sizing-skill/)
