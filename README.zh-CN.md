@@ -266,7 +266,6 @@ Claude 会：
 ### 6.3 方法 B — 添加为 Connector
 
 <p align="center">
-  <!-- TODO: screenshot — see references/img/claude-ai-customize-connectors.png -->
   <img alt="claude.ai Customize → Connectors 自定义对话框" src="references/img/claude-ai-customize-connectors.png" width="700">
 </p>
 
@@ -275,16 +274,19 @@ Claude 会：
 1. 点击头像 → **Customize → Connectors**。
 2. 点击 **+** → **Add custom connector**。
 3. 填入：
-   - **Server URL：** `https://btms-prv-sizing.up.railway.app/mcp/`
-     （末尾斜杠必填）
-   - **Custom headers：** `X-API-Key: usertempkey001`
+   - **Server URL：** `https://btms-prv-sizing.up.railway.app/mcp/?api_key=usertempkey001`
+     （`?` 之前的尾斜杠必填；API key 以 URL query 参数传入，因为 claude.ai 的对话框没有自定义 Header 字段）
+   - **OAuth Client ID / Secret：** **两个字段都必须留空**
+     （填了会触发 OAuth 流程，但本服务端未实现 OAuth 端点，每次连接都会返回 `{"detail":"Not Found"}`）
 4. 点击 **Save**。
 5. 验证：开启新对话 → 点左下角 **+** → **Connectors**。把 `btms-prv-sizing` 切换为启用，三个工具（`prv_solve`、`prv_databases`、`prv_parameters`）即可使用。
+
+> 💡 **连接失败具有粘性。** claude.ai 会缓存失败的 OAuth 状态，所以仅仅重新保存 connector 仍会失败。恢复方法：先删除整个 connector → 关闭所有 claude.ai 标签页（或重启 Claude 应用）→ 用上面的 URL 重新从零创建，OAuth 字段保持空白。
 
 #### Team / Enterprise plan（组织级配置）
 
 1. 由 **Owner** 打开 **Organization Settings → Connectors → Add → Custom → Web**。
-2. 填入相同的 URL 与 Header，发布。
+2. 填入相同的 URL（含 `?api_key=...`），OAuth 字段留空，发布。
 3. 各成员再按上面的 Pro/Max 步骤独立连接。
 
 ### 6.4 推荐组合

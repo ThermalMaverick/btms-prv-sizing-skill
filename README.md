@@ -319,7 +319,6 @@ will follow `SKILL.md`'s playbook.
 ### 6.3 Method B — Add as Connector
 
 <p align="center">
-  <!-- TODO: screenshot — see references/img/claude-ai-customize-connectors.png -->
   <img alt="claude.ai Customize → Connectors add custom dialog" src="references/img/claude-ai-customize-connectors.png" width="700">
 </p>
 
@@ -328,18 +327,27 @@ will follow `SKILL.md`'s playbook.
 1. Click your avatar → **Customize → Connectors**.
 2. Click **+** → **Add custom connector**.
 3. Fill in:
-   - **Server URL:** `https://btms-prv-sizing.up.railway.app/mcp/`
-     (trailing slash required)
-   - **Custom headers:** `X-API-Key: usertempkey001`
+   - **Server URL:** `https://btms-prv-sizing.up.railway.app/mcp/?api_key=usertempkey001`
+     (trailing slash before `?` is required; the API key is passed as a
+     URL query parameter because claude.ai's dialog has no custom-header field)
+   - **OAuth Client ID / Secret:** **leave both fields empty**
+     (filling them triggers an OAuth flow this server does not implement,
+     and you will get `{"detail":"Not Found"}` on every connect attempt)
 4. Click **Save**.
 5. Verify: start a new chat → click **+** at the bottom-left → **Connectors**.
    Toggle `btms-prv-sizing` on; the three tools (`prv_solve`,
    `prv_databases`, `prv_parameters`) become available.
 
+> 💡 **If a connect attempt fails, the failure is sticky.** claude.ai
+> caches the OAuth state from a failed attempt, so simply re-saving the
+> connector keeps failing. To recover: delete the connector entirely,
+> close all claude.ai tabs (or restart the Claude app), then recreate it
+> from scratch with the URL above and OAuth fields empty.
+
 #### Team / Enterprise plans (org-level setup)
 
 1. An **Owner** opens **Organization Settings → Connectors → Add → Custom → Web**.
-2. Fills in the same URL + header values, then publishes.
+2. Fills in the same URL (with `?api_key=...`) and leaves OAuth fields empty, then publishes.
 3. Each member then connects individually via the per-user steps above.
 
 ### 6.4 Recommended Combo
