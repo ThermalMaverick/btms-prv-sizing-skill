@@ -376,6 +376,10 @@ Neither environment has shell access or a writeable local filesystem, so:
 If you need any of these, go back to **[§4 Browser GUI](#4-browser-gui-zero-install)**
 or **[§5 Claude Code Skill](#5-claude-code-skill)**.
 
+<p align="center">
+  <img alt="btms-prv-sizing running in a claude.ai conversation" src="references/img/claude-ai-conversation.png" width="700">
+</p>
+
 ---
 
 ## 7. REST API Reference
