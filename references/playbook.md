@@ -12,6 +12,11 @@ Do **not** start the relay or open a browser. Execute the steps in order.
 
 ### Step M1 — Fetch schema, disambiguate, map DB IDs
 
+> ⚠️ Call MCP tools **sequentially**, never in one parallel batch — await
+> `prv_parameters` before calling `prv_databases`. Concurrent calls during the
+> first-contact session setup can drop a connection (see the transient-error
+> handling under Step M4).
+
 1. Call `prv_parameters` (once per session) to get default values and ranges
    for every input field.
 2. **Ambiguity guard.** If the user offered a bare number with no field name
@@ -48,7 +53,7 @@ table below before building the confirmation table:
 - `v_pack ∈ (0, 10] m³`
 - `p_atm ∈ [50000, 200000] Pa`
 - `t_max ∈ (0, 600] s`
-- `t_const ∈ [233.15, 473.15] K`
+- `t_const ∈ [233.15, 1273.15] K`
 - `cell_count ∈ [1, 500]`
 - `valve_count ∈ [1, 50]`
 
@@ -66,7 +71,7 @@ value, so the user can spot conversion errors at a glance:
 | valve_count  | —           | 2              | default        | [1, 50]            |
 | p_atm        | —           | 101325 Pa      | default        | [50000, 200000] Pa |
 | t_max        | —           | 300 s          | default        | (0, 600] s         |
-| t_const      | 60°C        | 333.15 K       | user (converted)| [233.15, 473.15] K|
+| t_const      | 60°C        | 333.15 K       | user (converted)| [233.15, 1273.15] K|
 | cell_db_id   | NCM 40Ah    | "01" (Demo-NCM-40Ah) | user (matched) | —            |
 | valve_db_id  | —           | "01" (S001, Spring)  | default        | —            |
 ```
@@ -113,7 +118,7 @@ Call `prv_solve({...})` with the confirmed parameters.
      "__source__":     "mcp",
      "__written_at__": <unix_seconds> }
    ```
-   The `__source__` tag is critical — without it, the long-lived Step B3
+   The `__source__` tag is critical — without it, the long-lived Step B2
    watcher would mistake this MCP write for a GUI ▶ Run click and emit a
    duplicate result. The relay tags its own writes as `"browser"`; the
    watcher only emits when `__source__ == "browser"`.
@@ -133,8 +138,16 @@ Call `prv_solve({...})` with the confirmed parameters.
 
 - **API returned non-2xx** (e.g. validation error, 4xx, 5xx) → parse the error
   body, tell the user exactly which parameter is wrong, and return to Step M2.
-- **MCP call itself raised** (network / auth / MCP server down) → tell the
-  user and offer a fallback:
+- **Transient transport error** — `socket connection was closed unexpectedly`,
+  connection reset, or a timeout (the call *raised* instead of returning an HTTP
+  status) → almost always a one-off, not an outage. **Retry the same call once,
+  sequentially.** Do **not** curl `/health` or `/ready` to "check MCP": those
+  exercise the REST stack, not the Streamable-HTTP transport, so they prove
+  nothing about a failed tool call. If any MCP tool has already succeeded this
+  session, the layer is up — treat a single failure as transient and retry it
+  rather than abandoning MCP for the browser.
+- **Auth (401/403), rate limit (429), or genuine outage** (the retry above also
+  failed) → tell the user and offer a fallback:
   > "MCP call failed: \<reason\>. Options:
   > (1) retry,
   > (2) switch to the browser path so you can fill the form manually."
@@ -200,7 +213,7 @@ RELAY_PORT=<relay_port> python ~/.claude/skills/btms-prv-sizing/scripts/local_re
 
 After starting the relay, immediately **Monitor** it for up to 3 seconds to capture
 its startup output. Find the line beginning `Results will be written to: ` and extract
-the full path that follows — store it as **`_RESULT_PATH`** for use in Steps B3 and M4.
+the full path that follows — store it as **`_RESULT_PATH`** for use in Steps B2 and M4.
 
 Example startup output:
 ```
@@ -225,7 +238,34 @@ Expect HTTP 200. If connection refused, the port may be in the Windows
 excluded range (`netsh interface ipv4 show excludedportrange protocol=tcp`)
 — retry with a different port.
 
-### Step B2 — Open the browser
+### Step B2 — Arm the result stream (Monitor tool, long-lived)
+
+Launch the watcher **before** opening the browser, so the user's first ▶ Run
+click cannot be missed. Use the **Monitor tool** with `persistent: true` —
+**not** `run_in_background`. A `run_in_background` process only notifies you
+when it *exits*; the watcher loops forever and never exits, so its per-click
+output would never surface in chat. The Monitor tool turns each stdout line
+into a chat event — exactly the per-click stream we want.
+
+It is the dedicated `scripts/watch_results.py` script, called with the
+`_RESULT_PATH` captured in Step B1:
+
+```powershell
+# Windows
+python "$env:USERPROFILE\.claude\skills\btms-prv-sizing\scripts\watch_results.py" "<_RESULT_PATH>"
+```
+
+```bash
+# macOS / Linux
+python ~/.claude/skills/btms-prv-sizing/scripts/watch_results.py "<_RESULT_PATH>"
+```
+
+The watcher must stay alive for the entire session (`persistent: true`) so
+multiple ▶ Run clicks all get streamed back to chat — do **not** exit after
+the first hit. Each JSON line on its stdout is one ▶ Run click from the
+browser. There is no need (and no way) to re-launch it between clicks.
+
+### Step B3 — Open the browser
 
 Always use `127.0.0.1` (not `localhost`) to dodge DNS/IPv6 issues.
 
@@ -249,28 +289,6 @@ Tell the user:
 > endpoint and key should be pre-filled from last time. If the dropdowns are
 > stuck on 'Loading…', the API is unreachable — re-run Pre-flight. Once
 > databases load, set your parameters and click ▶ Run."
-
-### Step B3 — Watch for results (background, long-lived)
-
-Run with `run_in_background: true`. The watcher must stay alive for the
-entire session so multiple ▶ Run clicks all get streamed back to chat —
-do **not** exit after the first hit. It is the dedicated
-`scripts/watch_results.py` script, called with the `_RESULT_PATH` captured
-in Step B1:
-
-```powershell
-# Windows
-python "$env:USERPROFILE\.claude\skills\btms-prv-sizing\scripts\watch_results.py" "<_RESULT_PATH>"
-```
-
-```bash
-# macOS / Linux
-python ~/.claude/skills/btms-prv-sizing/scripts/watch_results.py "<_RESULT_PATH>"
-```
-
-Read each new line of the watcher's stdout via the **Monitor** tool — each
-JSON line is one ▶ Run click from the browser. There is no need (and no way)
-to re-launch the watcher between clicks.
 
 ### Step B4 — Report
 
@@ -359,7 +377,18 @@ When `runtime == "headless"`, tell the user:
 | Valve Count       | {valve_count}                          |
 | Ambient Pressure  | {p_atm_kpa} kPa                        |
 | Simulation Time   | {t_max_s} s                            |
+
+**Downloads** (link valid ~1 hour):
+- [📊 CSV — full timeseries]({csv_url})
+- [📄 PDF report — with charts]({pdf_url})
 ```
+
+The MCP `prv_solve` response carries `csv_url` and `pdf_url` — render them as
+the clickable links above. The pressure/temperature curves are **in the PDF**.
+
+> ⛔ Do NOT plot or reconstruct the pressure curve in chat. The MCP response
+> deliberately omits the raw timeseries; any chart you draw would be fabricated.
+> Point the user at the PDF/CSV instead.
 
 Follow the table with **2–4 sentences** of engineering commentary covering:
 

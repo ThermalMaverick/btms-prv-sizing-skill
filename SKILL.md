@@ -115,29 +115,51 @@ Five steps, detailed in [references/playbook.md § MCP Path](references/playbook
    when `runtime == "code"` write `last_result.json` with the marker fields
    `__source__: "mcp"` + `__written_at__`.
 
+> ⚠️ **Call MCP tools one at a time — never in the same parallel tool batch.**
+> The Streamable-HTTP session is established on the **first** call; dispatching
+> `prv_parameters` / `prv_databases` / `prv_solve` concurrently during that
+> setup can get one connection dropped (`socket connection was closed
+> unexpectedly`). Await each call's result before issuing the next.
+
+> ⛔ **MCP result presentation.** `prv_solve` returns a KPI summary plus
+> `csv_url` / `pdf_url` download links — **not** the raw timeseries. Present
+> the KPI table and surface the two links. **Never plot or reconstruct the
+> pressure/temperature curve in chat** — there is no series to plot and any
+> chart would be fabricated. The curves live in the PDF.
+
 ---
 
 ## Browser Path (summary)
 
-Four steps, detailed in [references/playbook.md § Browser Path](references/playbook.md):
+Pre-flight plus four steps (B1–B4), detailed in [references/playbook.md § Browser Path](references/playbook.md):
 
 1. **Pre-flight** — collect API endpoint, key, relay port; verify `/health`.
 2. **B1** — Start `local_relay.py` in the background (Windows: bind to
    `127.0.0.1`, set `RELAY_PORT`); capture `_RESULT_PATH` from its banner.
-3. **B2** — Open the browser at `http://127.0.0.1:<relay_port>`.
-4. **B3** — Launch the long-lived watcher (one command — see below); read
-   each emitted JSON line via the Monitor tool.
-5. **B4** — Format each result with the Analysis template.
+3. **B2** — Arm the result stream **before opening the browser**: launch the
+   long-lived watcher on `_RESULT_PATH` with the **Monitor tool**
+   (`persistent: true`). See the command below.
+4. **B3** — Open the browser at `http://127.0.0.1:<relay_port>`, then tell the
+   user to set parameters and click ▶ Run. Each click streams one JSON line
+   from the watcher into chat.
+5. **B4** — Format each streamed result with the Analysis template.
 
-The watcher is a single dedicated script — invoke it with the result path
-captured in B1:
+> ⚠️ **Launch the watcher with the Monitor tool, not `run_in_background`, and
+> do it in B2 — before B3.** A `run_in_background` process only notifies you
+> when it *exits*; the watcher loops forever and never exits, so its per-click
+> output would never reach chat and results would silently fail to stream.
+> Arming it before the browser opens also guarantees the user's first ▶ Run
+> click is captured.
+
+The watcher is a single dedicated script — invoke it (Monitor tool,
+`persistent: true`) with the result path captured in B1:
 
 ```bash
 python "<path-to>/skill/scripts/watch_results.py" "<_RESULT_PATH>"
 ```
 
-Run with `run_in_background: true` and let it stay alive for the entire
-session. Every ▶ Run click writes a new line.
+It stays alive for the entire session; every ▶ Run click emits a new JSON
+line. There is no need to relaunch it between clicks.
 
 ---
 
@@ -175,7 +197,15 @@ items Claude actually hits **during a session**:
   `RELAY_PORT=9080`.
 - **Dropdowns stuck on "Loading…"** → API is unreachable. Re-run Pre-flight
   `/health` curl.
-- **Watcher never emits** → user hasn't clicked ▶ Run, or the relay
+- **Watcher never streams results to chat** → most often it was launched with
+  `run_in_background` instead of the **Monitor tool** (a backgrounded process
+  only notifies on exit; the watcher never exits) — relaunch via Monitor with
+  `persistent: true`. Otherwise the user hasn't clicked ▶ Run, or the relay
   `/local-results` POST is failing.
+- **MCP call raised `socket connection was closed unexpectedly`** → transient
+  transport blip, often from dispatching MCP calls concurrently. Retry the same
+  call **once, sequentially**; don't abandon MCP or curl `/health` (it tests the
+  REST stack, not the MCP transport). A prior successful MCP tool this session
+  proves the layer is up.
 - **MCP `/mcp` shows "Invalid Host header"** → API server needs
   `MCP_ALLOWED_HOSTS` set.
