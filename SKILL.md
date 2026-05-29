@@ -1,6 +1,6 @@
 ---
 name: btms-prv-sizing
-description: Size pressure-relief valves (PRVs) for battery packs. Routes to either a browser GUI (interactive Plotly charts, CSV/PDF export) or direct MCP tool calls (zero-friction parameter sweeps), depending on user intent. Backed by a FastAPI lumped-parameter BDF ODE solver. Use when the user asks about PRV sizing, pressure-relief valve selection, battery pack pressure simulation, thermal-runaway pressure modelling — in English or Chinese (泄压阀选型 / 电池包压力 / 热失控仿真) — or explicitly invokes /btms-prv-sizing.
+description: Size pressure-relief valves (PRVs) for battery packs. Routes to either a browser GUI (interactive Plotly charts, CSV/PDF export) or direct MCP tool calls (zero-friction parameter sweeps), depending on user intent. Backed by a lumped-parameter pack-pressure solver. Use when the user asks about PRV sizing, pressure-relief valve selection, explosion-proof valve selection, burst valve selection, pressure-released device selection, battery pack pressure simulation, thermal-runaway pressure modelling — in English or Chinese (泄压阀选型 / 电池包压力 / 热失控压力仿真 / 防爆阀选型) — or explicitly invokes /btms-prv-sizing.
 ---
 
 # btms-prv-sizing — Battery Pack PRV Sizing
@@ -107,7 +107,10 @@ Five steps, detailed in [references/playbook.md § MCP Path](references/playbook
 2. **M1.5** — Convert user units (L → m³, °C → K, kPa → Pa, min → s) and
    range-check every converted value.
 3. **M2** — Build the full parameter confirmation table (user input + SI value
-   + source + range).
+   + source + range). List rows in the **fixed order** defined in
+   [references/playbook.md § Step M2](references/playbook.md): Void Volume →
+   Ambient Pressure → Gas Temperature → Cell Model → Cell Count → Valve Model
+   → Valve Type → Valve Count → Valve Opening Pressure → Simulation Time.
 4. **M3** — Wait for explicit confirmation. **Never call `prv_solve` before
    the user confirms.**
 5. **M4** — Call `prv_solve`, format with the Analysis template

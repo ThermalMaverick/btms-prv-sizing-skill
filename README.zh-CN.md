@@ -22,7 +22,7 @@
 
 `btms-prv-sizing` 帮助电池热管理工程师**模拟热失控事件中电池包内压力的演化**，并**评估所选 PRV 阀是否满足设计要求**——支持浏览器 GUI、Claude Code skill 和远程 MCP connector 三种接入方式。
 
-后端求解核心为**集总参数电池包压力 ODE 模型**，使用 SciPy 的 BDF 求解器，输入为单电芯排气曲线与阀门压力-流量曲线的表格化数据。三种前端共用同一套后端。
+后端求解核心为**集总参数电池包压力模型**，输入为单电芯排气曲线与阀门压力-流量曲线的表格化数据。三种前端共用同一套后端。
 
 ---
 
@@ -61,7 +61,7 @@
 
 | 阀门类型 | 行为 |
 |---|---|
-| **Spring（弹簧式）** | 可逆。在 `p_open` 开启，在 `p_open − hysteresis`（开启相对压差的 5%，至少 500 Pa）回座。使用事件分段 BDF + `dn/dt` 回座闸控来抑制强排气下的颤振。 |
+| **Spring（弹簧式）** | 可逆。在设定压力开启，当压力回落到回座阈值以下时带迟滞回座。 |
 | **Membrane（膜片式）** | 不可逆。一旦穿越开启压力即锁死开启，之后整个仿真使用"开启后"曲线。 |
 
 **适用场景**：早期 PRV 概念选型、敏感性分析（多加几个阀？提高开启压力？）以及由 Claude 驱动的"假设性"参数扫描。
@@ -79,7 +79,7 @@
   <img alt="btms-prv-sizing — 系统架构与数据流" src="references/img/architecture.png" width="820">
 </p>
 
-最终用户通过四种前端接入 FastAPI 后端——浏览器 GUI、Claude Code Skill + 本地 relay、Claude Desktop / claude.ai，或任意 HTTP 客户端——所有请求都携带相同的 `X-API-Key` 请求头。后端同时暴露常规 REST 接口（`/solve`、`/report`、`/databases`、`/parameters`）以及位于 `/mcp/` 的 Streamable-HTTP FastMCP 子应用，并最终把求解委托给 `BatteryPressureSolver`（SciPy BDF ODE，配合事件分段的 Spring 阀或终止锁死的 Membrane 阀动力学）。
+最终用户通过四种前端接入后端——浏览器 GUI、Claude Code Skill + 本地 relay、Claude Desktop / claude.ai，或任意 HTTP 客户端——所有请求都携带相同的 `X-API-Key` 请求头。后端同时暴露常规 REST 接口（`/solve`、`/report`、`/databases`、`/parameters`）以及位于 `/mcp/` 的 Streamable-HTTP MCP 子应用，并最终把求解委托给私有的求解核心。
 
 后端代码在**私有仓库**；本 `skill/` 目录是公开的客户端 + skill 包。
 
@@ -147,7 +147,7 @@
 </p>
 
 - **CSV** — 完整时间序列数据（时间、压力、温度、摩尔数、阀门状态、流量）。
-- **PDF** — 多页工程报告，包含 KPI 摘要、参数表与嵌入图表。服务端通过 ReportLab + Matplotlib 在线程池中生成。
+- **PDF** — 多页工程报告，包含 KPI 摘要、参数表与嵌入图表。服务端生成。
 
 ---
 
@@ -230,7 +230,7 @@ Claude 会：
 | **获得的能力** | Claude 读取 `SKILL.md`，按 playbook 引导你（单位换算、参数确认表、分析模板） | 工具选择器中出现裸 MCP 工具（`prv_solve`、`prv_databases`、`prv_parameters`） |
 | **Plan 要求** | **全部 plan** 支持（Free / Pro / Max / Team / Enterprise） | **仅 Pro / Max / Team / Enterprise**（Free 不支持） |
 | **最佳场景** | "对话式引导我完成"体验 | "我已知参数，快速跑一次" |
-| **GUI / 文件导出** | 不可用——Desktop 与 claude.ai 没有 shell | 不可用 |
+| **GUI / 文件导出** | 不可用——Desktop 与 claude.ai 没有 shell | 无交互式 GUI，但 `prv_solve` 会返回可点击的 CSV/PDF 下载链接（公开 token，1 小时有效） |
 
 > 💡 **最佳实践：两种方法都装。** Skill 提供 playbook 与歧义守门；Connector 提供 Skill 最终需要调用的求解工具。两者无缝协作。
 
@@ -302,18 +302,18 @@ Claude 会：
 
 这两个环境都没有 shell 访问与可写本地文件系统，因此：
 
-- ❌ **无交互式 GUI / Plotly 图表。** 结果以 Markdown 表格返回。
-- ❌ **无 CSV / PDF 下载。** `/report` 端点无法在这些客户端中以二进制 PDF 附件返回。
+- ❌ **无交互式 GUI / Plotly 图表。** KPI 摘要以 Markdown 表格返回，无法在对话中缩放/平移曲线。
+- ✅ **可通过 Connector 下载 CSV / PDF。** `prv_solve` 会返回 `csv_url` / `pdf_url` 链接（公开 token，1 小时有效），点击即可在任意浏览器下载完整分辨率的时间序列 CSV 与多页 PDF 报告——曲线图就在该 PDF 中。
 - ❌ **无本地 relay。** 依赖 `local_relay.py` 的 Skill 路径会自动禁用（Skill 检测到 `runtime = "headless"`）。
 
-如果你需要以上任一功能，请回到 **[§4 浏览器 GUI](#4-浏览器-gui零安装)** 或 **[§5 Claude Code Skill](#5-claude-code-skill)**。
+如果你需要交互式图表或本地 relay，请回到 **[§4 浏览器 GUI](#4-浏览器-gui零安装)** 或 **[§5 Claude Code Skill](#5-claude-code-skill)**。
 
 ---
 
 ## 7. REST API 参考
 
 > 🔌 **Base URL：** `https://btms-prv-sizing.up.railway.app`
-> 🔑 **鉴权：** 除 `/health`、`/ready`、`/local-result-schema` 外，所有端点都需要 `X-API-Key` 请求头（例如 `X-API-Key: usertempkey001`）。
+> 🔑 **鉴权：** 除 `/health`、`/ready`、`/local-result-schema` 以及带 token 的 `/d/{token}/…` 下载链接外，所有端点都需要 `X-API-Key` 请求头（例如 `X-API-Key: usertempkey001`）。
 
 ### 端点列表
 
@@ -327,7 +327,13 @@ Claude 会：
 | `GET` | `/databases/valves` | ✓ | 列出内置阀门条目（含完整 P-Q 曲线） |
 | `POST` | `/solve` | ✓ | 跑一次仿真，返回 KPI + 降采样的时间序列 |
 | `POST` | `/report` | ✓ | 跑一次仿真，返回多页 PDF 报告 |
+| `GET` | `/d/{token}/csv` | — | 下载完整分辨率时间序列 CSV（token 即凭证，1 小时有效） |
+| `GET` | `/d/{token}/pdf` | — | 下载多页 PDF 报告（token 即凭证，1 小时有效） |
 | `POST` | `/mcp/` | ✓ | Streamable-HTTP 的 MCP 端点（供 connector 用） |
+
+> `/d/{token}/…` 链接正是 MCP `prv_solve` 返回的 `csv_url` / `pdf_url`。它们
+> 刻意**不鉴权**——不可猜的 token 加 1 小时 TTL 即为凭证，浏览器直接点击即可
+> 下载；首次访问时才按缓存的输入懒加载重新求解。
 
 ### `POST /solve` 最小示例
 
@@ -381,15 +387,15 @@ curl -X POST https://btms-prv-sizing.up.railway.app/solve \
 
 ### 限流
 
-进程内令牌桶，默认 **每个 API key 60 次/分钟**。超出 → `429 Too Many Requests`，带 `Retry-After: 60` 头。自托管部署可通过 `RATE_LIMIT_RPM` 环境变量覆盖。
+默认 **每个 API key 60 次/分钟**。超出 → `429 Too Many Requests`，带 `Retry-After: 60` 头。自托管部署可通过 `RATE_LIMIT_RPM` 环境变量覆盖。
 
 ### 错误模型
 
 | 状态码 | 含义 | detail 字段 |
 |---|---|---|
-| `401` | 缺 `X-API-Key` 请求头 | `"Missing X-API-Key header."` |
+| `401` | 缺 `X-API-Key` 请求头（或 Bearer token） | `"Missing X-API-Key header or Bearer token."` |
 | `403` | Key 不在白名单 | `"Invalid API key."` |
-| `422` | 输入校验失败（Pydantic 或 `SizingError`） | 字段级错误信息 |
+| `422` | 输入校验失败（schema 或求解约束） | 字段级错误信息 |
 | `429` | 触发限流 | `"Rate limit exceeded (60 requests / minute)."` |
 | `500` | 内部求解器崩溃 | `"Internal solver error."`（完整堆栈仅记入服务端日志） |
 | `503` | 服务端配置错误（`API_KEYS` 环境变量为空） | `"Server misconfigured: API_KEYS env var not set."` |
@@ -461,6 +467,10 @@ curl -X POST https://btms-prv-sizing.up.railway.app/solve \
 - `pq_curve_after` — 阀开启后的泄压流量。
 - 两条曲线：`dp_pa` 严格递增 ≥ 0，`q_m3s` 单调不减 ≥ 0。
 
+### 用 CSV 文件提供你的数据
+
+上面的自定义输入是 JSON 数组——MCP 工具和 REST 端点都**没有文件上传通道**，因此你无法把 `.csv` 直接交给求解器。但在 **Claude Code skill** 路径下，Claude 会读取你的 CSV（Claude Code 中为本地文件，Claude Desktop / claude.ai 中为对话附件），把各列换算成 SI（如 分 → 秒、kPa → Pa、L·min⁻¹ → m³·s⁻¹），并替你填好 `custom_cell` / `custom_valve`。两点仍须满足：数值最终必须是**严格 SI 单位**，且每条曲线必须**单调**（`t_s` / `dp_pa` 严格递增；`n_mol` / `q_m3s` 单调不减）。如果你直接调 API，则需自行完成换算。
+
 ### 多阀说明
 
 `valve_count = N` 表示**并联 N 个完全相同的阀门**（同类型、同 P-Q 曲线）。如需模拟异构组合（如 1 个 Spring + 1 个 Membrane），请分别跑两次仿真后对比。
@@ -503,7 +513,7 @@ btms-prv-sizing-skill/                     ← 你现在的位置
     └── watch_results.py                   ← 长驻 watcher：把浏览器结果流向 Claude
 ```
 
-**求解核心**（`core/solver.py`、电芯/阀门数据库、PDF 报告生成）位于**独立的私有仓库**，未在此分发。
+**求解核心**（求解器与自带的电芯/阀门数据库）位于**独立的私有仓库**，未在此分发。
 
 ---
 
@@ -539,7 +549,7 @@ Claude 会话内的常见 gotcha 见 [`references/troubleshooting.md`](reference
 <details>
 <summary><strong>能自托管后端吗？</strong></summary>
 
-求解核心（`core/solver.py`、FastAPI 应用、电芯/阀门加载器）目前位于私有仓库，**暂不开放自托管**。如果这是你评估时的卡点，请提 issue 描述用例。
+求解核心目前位于私有仓库，**暂不开放自托管**。如果这是你评估时的卡点，请提 issue 描述用例。
 
 </details>
 
@@ -616,5 +626,5 @@ Claude 会话内的常见 gotcha 见 [`references/troubleshooting.md`](reference
 ---
 
 <p align="center">
-  <sub>基于 FastAPI · SciPy · Plotly · ReportLab · Claude Skills 构建。</sub>
+  <sub>基于 Plotly · Claude Skills 构建。</sub>
 </p>

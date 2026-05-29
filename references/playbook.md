@@ -32,6 +32,47 @@ Do **not** start the relay or open a browser. Execute the steps in order.
      **not** silently substitute a default ID.
    - Same procedure for `valve_db_id`.
 
+### Step M1.4 — Bring your own data via CSV (optional)
+
+The bundled cell/valve entries are DEMO data. A user can instead supply their
+**own measured curve as a CSV** — for the cell gas-generation curve, the valve
+P-Q curve, or both. There is **no file-upload channel in MCP**: `prv_solve`
+only accepts the curve as structured arrays. So **you (Claude) read the CSV and
+convert it** into the inline arrays, then pass them to `prv_solve`:
+
+- **Claude Code** — the CSV is a local file; read it with the file tool.
+- **Claude Desktop / claude.ai** — the user attaches the CSV to the chat; read
+  the attached content.
+
+Map the columns into the request like this:
+
+| Source CSV (typical columns)            | API target                                              |
+|-----------------------------------------|---------------------------------------------------------|
+| time, cumulative gas moles per cell     | `custom_cell.venting_curve` → `t_s` (s), `n_mol` (mol)  |
+| pressure drop, flow (valve **closed**)  | `custom_valve.pq_curve_before` → `dp_pa` (Pa), `q_m3s` (m³/s) |
+| pressure drop, flow (valve **open**)    | `custom_valve.pq_curve_after`  → `dp_pa` (Pa), `q_m3s` (m³/s) |
+
+For a custom valve you also need `valve_type` (`Spring` / `Membrane`) and
+`opening_pressure_rel_pa` (relative to ambient) — ask the user if the CSV does
+not carry them.
+
+**Before submitting, two hard requirements:**
+
+1. **Convert to SI.** A measured CSV is often in min / kPa / (L·min⁻¹); the
+   custom inputs are strict SI (s, mol, Pa, m³·s⁻¹). Apply: min → s (×60),
+   kPa → Pa (×1000), L·min⁻¹ → m³·s⁻¹ (÷ 60000). Show the user the converted
+   first/last rows so they can spot a wrong column or unit.
+2. **Check monotonicity** (the API rejects otherwise): every `t_s` and
+   `dp_pa` array must be **strictly increasing**; `n_mol` and `q_m3s` must be
+   **non-decreasing**; all values finite and ≥ 0. If the raw CSV violates this
+   (duplicate timestamps, noisy dips), tell the user and ask how to clean it —
+   do **not** silently drop or reorder rows.
+
+Then continue to Step M1.5 / M2 as usual. In the Step M2 table, mark the
+source as "from CSV: \<filename\>" so the user can confirm the file was read
+correctly. The DB and custom paths mix freely — e.g. a DEMO valve with a
+CSV-sourced cell curve.
+
 ### Step M1.5 — Unit conversion (mandatory)
 
 Users speak in everyday units; the API requires strict SI. Convert per the
@@ -61,19 +102,41 @@ table below before building the confirmation table:
 
 Merge user-supplied values (post-conversion) with schema defaults. Show the
 **full parameter list** with both the user's original phrasing and the SI
-value, so the user can spot conversion errors at a glance:
+value, so the user can spot conversion errors at a glance.
+
+**Always list the rows in this fixed order** (it reads more logically —
+pack → environment → cell → valve → run), regardless of the order the user
+mentioned them:
+
+1. Void Volume in Pack — `v_pack`
+2. Ambient Pressure — `p_atm`
+3. Gas Temperature — `t_const` (or temperature mode)
+4. Cell Model — `cell_db_id` / `custom_cell`
+5. Cell Count — `cell_count`
+6. Valve Model — `valve_db_id` / `custom_valve`
+7. Valve Type — looked up from the valve (Spring / Membrane)
+8. Valve Count — `valve_count`
+9. Valve Opening Pressure — looked up from the valve
+10. Simulation Time — `t_max`
+
+`Valve Type` and `Valve Opening Pressure` are read from the chosen valve DB
+entry (`prv_databases` returns `valve_type` + `opening_pressure_kpa`); for a
+BYO valve they come from `custom_valve`. Show them so the user can sanity-check
+the valve before solving.
 
 ```
-| Field        | User input  | SI value       | Source         | Range              |
-|--------------|-------------|----------------|----------------|--------------------|
-| v_pack       | 30L         | 0.030 m³       | user           | (0, 10] m³         |
-| cell_count   | 100         | 100            | user           | [1, 500]           |
-| valve_count  | —           | 2              | default        | [1, 50]            |
-| p_atm        | —           | 101325 Pa      | default        | [50000, 200000] Pa |
-| t_max        | —           | 300 s          | default        | (0, 600] s         |
-| t_const      | 60°C        | 333.15 K       | user (converted)| [233.15, 1273.15] K|
-| cell_db_id   | NCM 40Ah    | "01" (Demo-NCM-40Ah) | user (matched) | —            |
-| valve_db_id  | —           | "01" (S001, Spring)  | default        | —            |
+| Parameter              | API field   | User input | SI value             | Source           | Range               |
+|------------------------|-------------|------------|----------------------|------------------|---------------------|
+| Void Volume in Pack    | v_pack      | 30L        | 0.030 m³             | user             | (0, 10] m³          |
+| Ambient Pressure       | p_atm       | —          | 101325 Pa            | default          | [50000, 200000] Pa  |
+| Gas Temperature        | t_const     | 60°C       | 333.15 K             | user (converted) | [233.15, 1273.15] K |
+| Cell Model             | cell_db_id  | NCM 40Ah   | "01" (Demo-NCM-40Ah) | user (matched)   | —                   |
+| Cell Count             | cell_count  | 100        | 100                  | user             | [1, 500]            |
+| Valve Model            | valve_db_id | —          | "01" (S001)          | default          | —                   |
+| Valve Type             | —           | —          | Spring               | from valve       | Spring / Membrane   |
+| Valve Count            | valve_count | —          | 2                    | default          | [1, 50]             |
+| Valve Opening Pressure | —           | —          | 5 kPa (rel.)         | from valve       | —                   |
+| Simulation Time        | t_max       | —          | 300 s                | default          | (0, 600] s          |
 ```
 
 > ℹ️ `valve_count = N` means N **identical** valves in parallel (same type,
@@ -184,11 +247,9 @@ Expect `{"status":"ok"}`. If `/health` fails:
 
 - **Production** — service is likely down; ask the user to check the provider's
   status page.
-- **Local** — instruct the user to start the backend in a **separate terminal
-  outside Claude Code** and confirm back:
-  ```
-  uv run uvicorn api.main:app --host 127.0.0.1 --port <api_port> --reload --env-file .env
-  ```
+- **Local** — instruct the user to start their local backend in a **separate
+  terminal outside Claude Code** (listening on `127.0.0.1:<api_port>`) and
+  confirm back once `/health` returns 200.
 
 > Do not proceed until `/health` returns 200. The API's CORS rule auto-allows
 > any `localhost` / `127.0.0.1` origin on any port, so no extra CORS config is
@@ -395,4 +456,6 @@ Follow the table with **2–4 sentences** of engineering commentary covering:
 - Whether the peak pressure is within typical structural limits.
 - Whether the valve timing looks reasonable relative to the venting duration.
 - Whether more valves or a different opening pressure might improve the result.
+- Report warning if the valve is NOT opened.
+- Report warning if the valve opened time is longer than 5s. 
 - A concrete suggestion for the next design iteration.

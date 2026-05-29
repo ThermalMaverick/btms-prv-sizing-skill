@@ -25,9 +25,9 @@ pressure rises during a thermal-runaway event** and **whether a chosen PRV is
 sized correctly** — through a browser GUI, a Claude Code skill, or a remote
 MCP connector.
 
-The compute core is a **lumped-parameter pack-pressure ODE** integrated with
-SciPy's BDF solver, fed by tabulated single-cell venting curves and tabulated
-valve pressure–flow curves. The same backend powers all three frontends.
+The compute core is a **lumped-parameter pack-pressure model**, fed by
+tabulated single-cell venting curves and tabulated valve pressure–flow
+curves. The same backend powers all three frontends.
 
 ---
 
@@ -75,8 +75,8 @@ types:
 
 | Valve type | Behaviour |
 |---|---|
-| **Spring** | Reversible. Opens at `p_open`, reseats at `p_open − hysteresis` (5 % of opening delta, ≥ 500 Pa). Pressure-segmented BDF with event detection + a `dn/dt` reseat gate to suppress chatter under high gas injection. |
-| **Membrane** | Irreversible. Once opening pressure is crossed, the valve latches open and uses the after-curve for the remainder of the simulation. |
+| **Spring** | Reversible. Opens at its setpoint and reseats with hysteresis once pressure falls back below the reseat threshold. |
+| **Membrane** | Irreversible. Once the opening pressure is crossed, the valve latches open and uses the after-curve for the remainder of the simulation. |
 
 **Where this is useful**: early-stage PRV concept selection, sensitivity
 analysis (more valves? higher opening pressure?), and Claude-driven
@@ -98,13 +98,12 @@ to risk without independent verification.
   <img alt="btms-prv-sizing — system architecture &amp; data flow" src="references/img/architecture.png" width="820">
 </p>
 
-End users reach the FastAPI backend through four front-ends — the Browser
-GUI, the Claude Code Skill + local relay, Claude Desktop / claude.ai, or any
-HTTP client — all carrying the same `X-API-Key` header. The backend exposes
-both the conventional REST surface (`/solve`, `/report`, `/databases`,
-`/parameters`) and a Streamable-HTTP FastMCP sub-app at `/mcp/`, and
-delegates the actual integration to `BatteryPressureSolver` (SciPy BDF ODE
-with event-segmented Spring or terminal-latch Membrane valve dynamics).
+End users reach the backend through four front-ends — the Browser GUI, the
+Claude Code Skill + local relay, Claude Desktop / claude.ai, or any HTTP
+client — all carrying the same `X-API-Key` header. The backend exposes both
+the conventional REST surface (`/solve`, `/report`, `/databases`,
+`/parameters`) and a Streamable-HTTP MCP sub-app at `/mcp/`, and delegates
+the actual computation to a private solver core.
 
 The backend lives in a **private repo**; this `skill/` directory is the
 public client + skill bundle.
@@ -183,8 +182,7 @@ in your browser.**
 - **CSV** — full time-series dump (time, pressure, temperature, moles, valve
   status, flow rate).
 - **PDF** — a multi-page engineering report with the KPI summary, parameter
-  table, and embedded charts. Generated server-side via ReportLab +
-  Matplotlib in a thread-pool worker.
+  table, and embedded charts. Generated server-side.
 
 ---
 
@@ -276,7 +274,7 @@ There are **two complementary integration methods**:
 | **You get** | Claude reads `SKILL.md` and follows the playbook (unit conversion, confirmation table, analysis template) | The raw MCP tools (`prv_solve`, `prv_databases`, `prv_parameters`) appear in the tool picker |
 | **Plan required** | **All plans** (Free, Pro, Max, Team, Enterprise) | **Pro / Max / Team / Enterprise** (not available on Free) |
 | **Best for** | Chat-driven "guide me through this" experience | "I know my parameters, just compute" |
-| **GUI / file export** | Not available — Desktop & claude.ai have no shell | Not available |
+| **GUI / file export** | Not available — Desktop & claude.ai have no shell | No interactive GUI, but `prv_solve` returns clickable CSV/PDF download links (public token, 1 h TTL) |
 
 > 💡 **Best practice: install both.** The Skill provides the playbook and
 > ambiguity-guards; the Connector provides the solver tools the Skill
@@ -366,15 +364,18 @@ solver). Without the Skill, you have raw tools but no guidance.
 
 Neither environment has shell access or a writeable local filesystem, so:
 
-- ❌ **No interactive GUI / Plotly charts.** Results return as a Markdown
-  table.
-- ❌ **No CSV / PDF download.** The `/report` endpoint cannot stream a binary
-  PDF into a chat attachment in these clients.
+- ❌ **No interactive GUI / Plotly charts.** The KPI summary returns as a
+  Markdown table; you cannot pan/zoom traces in chat.
+- ✅ **CSV / PDF download via the Connector.** `prv_solve` returns
+  `csv_url` / `pdf_url` links (public token, 1 h TTL) that you click to
+  download the full-resolution timeseries CSV and the multi-page PDF report
+  in any browser — the charts live in that PDF.
 - ❌ **No local relay.** Skill paths that depend on `local_relay.py` are
   automatically disabled (the Skill detects `runtime = "headless"`).
 
-If you need any of these, go back to **[§4 Browser GUI](#4-browser-gui-zero-install)**
-or **[§5 Claude Code Skill](#5-claude-code-skill)**.
+If you want interactive charts or a local relay, go back to
+**[§4 Browser GUI](#4-browser-gui-zero-install)** or
+**[§5 Claude Code Skill](#5-claude-code-skill)**.
 
 <p align="center">
   <img alt="btms-prv-sizing running in a claude.ai conversation" src="references/img/claude-ai-conversation.png" width="700">
@@ -385,9 +386,9 @@ or **[§5 Claude Code Skill](#5-claude-code-skill)**.
 ## 7. REST API Reference
 
 > 🔌 **Base URL:** `https://btms-prv-sizing.up.railway.app`
-> 🔑 **Auth:** every endpoint **except** `/health`, `/ready`, and
-> `/local-result-schema` requires an `X-API-Key` header (e.g.
-> `X-API-Key: usertempkey001`).
+> 🔑 **Auth:** every endpoint **except** `/health`, `/ready`,
+> `/local-result-schema`, and the tokenised `/d/{token}/…` download links
+> requires an `X-API-Key` header (e.g. `X-API-Key: usertempkey001`).
 
 ### Endpoints
 
@@ -401,7 +402,14 @@ or **[§5 Claude Code Skill](#5-claude-code-skill)**.
 | `GET` | `/databases/valves` | ✓ | List built-in valve entries (incl. full P-Q curves) |
 | `POST` | `/solve` | ✓ | Run a simulation, return KPI + downsampled time-series |
 | `POST` | `/report` | ✓ | Run a simulation, return a multi-page PDF report |
+| `GET` | `/d/{token}/csv` | — | Download full-resolution timeseries CSV (token = capability, 1 h TTL) |
+| `GET` | `/d/{token}/pdf` | — | Download the multi-page PDF report (token = capability, 1 h TTL) |
 | `POST` | `/mcp/` | ✓ | Streamable-HTTP MCP endpoint (for connectors) |
+
+> The `/d/{token}/…` links are what MCP `prv_solve` returns as `csv_url` /
+> `pdf_url`. They are intentionally **unauthenticated** — the unguessable
+> token plus 1-hour TTL is the capability, so a plain browser click works.
+> They re-solve lazily from the cached inputs on first fetch.
 
 ### Minimal `POST /solve` example
 
@@ -455,17 +463,17 @@ Response (truncated):
 
 ### Rate limit
 
-In-process token bucket, default **60 requests per minute per API key**.
-Exceeded → `429 Too Many Requests` with `Retry-After: 60`. Override with the
-`RATE_LIMIT_RPM` env var on self-hosted deployments.
+Default **60 requests per minute per API key**. Exceeded → `429 Too Many
+Requests` with `Retry-After: 60`. Override with the `RATE_LIMIT_RPM` env var
+on self-hosted deployments.
 
 ### Error model
 
 | Status | Meaning | Detail field |
 |---|---|---|
-| `401` | Missing `X-API-Key` header | `"Missing X-API-Key header."` |
+| `401` | Missing `X-API-Key` header (or Bearer token) | `"Missing X-API-Key header or Bearer token."` |
 | `403` | Key not in the allowlist | `"Invalid API key."` |
-| `422` | Input validation failed (Pydantic or `SizingError`) | Field-specific message |
+| `422` | Input validation failed (schema or solver constraint) | Field-specific message |
 | `429` | Rate limit exceeded | `"Rate limit exceeded (60 requests / minute)."` |
 | `500` | Internal solver crash | `"Internal solver error."` (full traceback in server logs only) |
 | `503` | Server misconfigured (`API_KEYS` env var empty) | `"Server misconfigured: API_KEYS env var not set."` |
@@ -544,6 +552,18 @@ valve, or custom cell + DB valve.
 - `pq_curve_after` — post-open relief flow.
 - Both curves: `dp_pa` strictly increasing ≥ 0, `q_m3s` non-decreasing ≥ 0.
 
+### Providing your data from a CSV file
+
+The custom inputs above are JSON arrays — there is **no file-upload channel**
+on the MCP tool or the REST endpoint, so you cannot hand the solver a `.csv`
+directly. In the **Claude Code skill** path, however, Claude reads your CSV
+(a local file in Claude Code, or a chat attachment in Claude Desktop /
+claude.ai), converts the columns to SI (e.g. min → s, kPa → Pa,
+L·min⁻¹ → m³·s⁻¹), and fills in `custom_cell` / `custom_valve` for you. Two
+things still apply: values must end up in **strict SI**, and each curve must be
+**monotonic** (`t_s` / `dp_pa` strictly increasing; `n_mol` / `q_m3s`
+non-decreasing). If you call the API directly, do that conversion yourself.
+
 ### Multi-valve note
 
 `valve_count = N` models **N identical valves in parallel** (same type, same
@@ -594,9 +614,8 @@ btms-prv-sizing-skill/                     ← you are here
     └── watch_results.py                   ← long-lived watcher: streams browser results to Claude
 ```
 
-The **compute core** (`core/solver.py`, the cell/valve databases, PDF
-reporting) lives in a **separate private repository** and is not
-redistributed here.
+The **compute core** (the solver and the bundled cell/valve databases) lives
+in a **separate private repository** and is not redistributed here.
 
 ---
 
@@ -637,10 +656,9 @@ licenses; you are expected to plug in your own measured curves via
 <details>
 <summary><strong>Can I self-host the backend?</strong></summary>
 
-The compute core (`core/solver.py`, FastAPI app, cell/valve loaders) lives
-in a private repository today. Self-hosting is not currently offered. If
-this is a blocker for your evaluation, please open an issue describing your
-use case.
+The compute core lives in a private repository today. Self-hosting is not
+currently offered. If this is a blocker for your evaluation, please open an
+issue describing your use case.
 
 </details>
 
@@ -737,5 +755,5 @@ Copyright © 2026 Thermal Maverick.
 ---
 
 <p align="center">
-  <sub>Built with FastAPI · SciPy · Plotly · ReportLab · Claude Skills.</sub>
+  <sub>Built with Plotly · Claude Skills.</sub>
 </p>

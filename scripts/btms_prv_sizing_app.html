@@ -1026,7 +1026,7 @@
       <br>
       <p><strong>Key features:</strong></p>
       <ul style="margin-left:1.2em; margin-top:6px; line-height:2;">
-        <li>BDF (implicit) ODE integration via SciPy for stiff systems</li>
+        <li>Implicit ODE integration tuned for stiff systems</li>
         <li>Spring valve (reversible) and Membrane valve (irreversible) models</li>
         <li>P-Q curve interpolation for valve flow rate</li>
         <li>Interactive Plotly charts with three display modes</li>
@@ -1054,7 +1054,7 @@ dP/dt = (P/T)·(dT/dt) + (R·T/V)·(dn/dt) − (P·Q_out)/V</pre>
         <li><strong>Membrane:</strong> Irreversible. Once P reaches opening setpoint, permanently latched open (two-segment integration).</li>
       </ul>
       <br>
-      <p><strong>Numerical Method:</strong> scipy.integrate.solve_ivp with BDF method, rtol = atol = 1×10⁻⁸.</p>
+      <p><strong>Numerical Method:</strong> an implicit solver for stiff ODE systems, run at tight error tolerances.</p>
     </div>
   </div>
 </div>
